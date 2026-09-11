@@ -1,0 +1,2 @@
+# Torneum
+Organizador de pádel que aprueba inscripciones y resuelve la jornada. Interfaz editorial operativa en español. Blanco tiza y grafito; único acento verde cancha. Bordes sutiles, sombras solo en overlays. Tipografía sans del sistema, números tabulares y rótulos pequeños. Base de espaciado 4px. Sidebar 240px. Agenda y marcadores como firma; canchas, parejas, grupos, sets y descanso definen el contenido. Componentes shadcn con tokens semánticos, foco visible, formularios Field, tablas densas, estados reales y vacíos explícitos.

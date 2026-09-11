@@ -1,0 +1,34 @@
+{
+  "name": "torneum-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --env-file-if-exists=.env src/server.ts",
+    "start": "node --env-file-if-exists=.env dist/server.js",
+    "build": "tsc",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "migrate": "node --import tsx --env-file-if-exists=.env src/migrate.ts",
+    "seed": "node --import tsx --env-file-if-exists=.env src/seed.ts",
+    "openapi": "node --import tsx src/export-openapi.ts"
+  },
+  "dependencies": {
+    "@fastify/cookie": "latest",
+    "@fastify/cors": "latest",
+    "@fastify/helmet": "latest",
+    "@fastify/rate-limit": "latest",
+    "@fastify/swagger": "latest",
+    "fastify": "latest",
+    "nodemailer": "latest",
+    "pg": "latest",
+    "sharp": "^0.35.4",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "@types/nodemailer": "latest",
+    "@types/pg": "latest",
+    "tsx": "latest",
+    "typescript": "latest"
+  }
+}
