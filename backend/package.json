@@ -2,6 +2,7 @@
   "name": "torneum-backend",
   "version": "1.0.0",
   "private": true,
+  "packageManager": "pnpm@11.5.2",
   "type": "module",
   "scripts": {
     "dev": "tsx watch --env-file-if-exists=.env src/server.ts",
