@@ -29,20 +29,29 @@ import { GroupTables, Bracket, ResultModal } from "./operations";
 import { ChatPanel } from "./chat-panel";
 import { get, mutate, date, time, API } from "@/lib/api";
 import type { State, Team, Match } from "@/lib/types";
-function PublicShell({ children }: { children: React.ReactNode }) {
+function PublicShell({
+  children,
+  slug,
+  orgName,
+}: {
+  children: React.ReactNode;
+  slug: string;
+  orgName?: string;
+}) {
   return (
     <div className="public-shell">
       <header className="public-nav">
-        <Link href="/portal" className="brand">
-          <span className="brand-mark">t</span>torneum.
+        <Link href={`/${slug}/portal`} className="brand">
+          <span className="brand-mark">t</span>
+          {orgName || "torneum"}.
         </Link>
         <nav>
-          <Link href="/portal">El torneo</Link>
-          <Link href="/mi-pareja">Mi pareja</Link>
+          <Link href={`/${slug}/portal`}>El torneo</Link>
+          <Link href={`/${slug}/mi-pareja`}>Mi pareja</Link>
           <Button
             variant="outline"
             nativeButton={false}
-            render={<Link href="/" />}
+            render={<Link href={`/${slug}`} />}
           >
             Organizador
             <ArrowUpRight data-icon="inline-end" />
@@ -53,25 +62,25 @@ function PublicShell({ children }: { children: React.ReactNode }) {
       <footer className="public-footer">
         <strong>torneum.</strong>
         <span>Cada partido cuenta.</span>
-        <Link href="/inscripcion">Participar en el torneo ↗</Link>
+        <Link href={`/${slug}/inscripcion`}>Participar en el torneo ↗</Link>
       </footer>
     </div>
   );
 }
-function usePublic() {
+function usePublic(slug: string) {
   const [state, setState] = useState<State | null>(null),
     [error, setError] = useState("");
   const refresh = useCallback(async () => {
     try {
-      setState(await get<State>("/v1/public"));
+      setState(await get<State>(`/v1/public/${slug}`));
       setError("");
     } catch (e) {
       setError((e as Error).message);
     }
-  }, []);
+  }, [slug]);
   useEffect(() => {
     void refresh();
-    const events = new EventSource(API + "/v1/events");
+    const events = new EventSource(API + `/v1/events?org=${slug}`);
     events.addEventListener("update", () => void refresh());
     const timer = setInterval(() => {
       if (document.visibilityState === "visible") void refresh();
@@ -83,15 +92,20 @@ function usePublic() {
   }, [refresh]);
   return { state, error, refresh };
 }
-export function Portal() {
-  const { state, error } = usePublic();
+export function Portal({ slug }: { slug: string }) {
+  const { state, error } = usePublic(slug);
   const [category, setCategory] = useState("all"),
     [zone, setZone] = useState("portal");
   if (!state)
     return (
-      <PublicShell>
+      <PublicShell slug={slug}>
         <main className="public-main">
-          {error ? (
+          {error === "Club no encontrado" ? (
+            <EmptyState
+              title="Club no encontrado"
+              description="Revisa la dirección o pide el enlace correcto a tu club."
+            />
+          ) : error ? (
             <Alert variant="destructive">
               <AlertDescription>{error}</AlertDescription>
             </Alert>
@@ -103,7 +117,7 @@ export function Portal() {
     );
   if (!state.tournament)
     return (
-      <PublicShell>
+      <PublicShell slug={slug} orgName={state?.organization?.name}>
         <EmptyState title="No hay torneo activo" />
       </PublicShell>
     );
@@ -114,7 +128,7 @@ export function Portal() {
   const name = (id: string | null) =>
     state.teams.find((t) => t.id === id)?.name || "Por definir";
   return (
-    <PublicShell>
+    <PublicShell slug={slug} orgName={state?.organization?.name}>
       <main className="public-main">
         <section className="public-hero">
           <div>
@@ -135,7 +149,7 @@ export function Portal() {
               size="lg"
               disabled={!t.registration_open}
               nativeButton={false}
-              render={<Link href="/inscripcion" />}
+              render={<Link href={`/${slug}/inscripcion`} />}
             >
               {t.registration_open
                 ? "Inscribir mi pareja"
@@ -267,7 +281,7 @@ export function Portal() {
             </div>
           </TabsContent>
           <TabsContent value="assistant">
-            <ChatPanel agent="public" enabled={state.integrations.chatkit} />
+            <ChatPanel agent="public" slug={slug} enabled={state.integrations.chatkit} />
           </TabsContent>
         </Tabs>
         <SponsorStrip state={state} zone={zone} />
@@ -320,8 +334,8 @@ function SponsorStrip({ state, zone }: { state: State; zone: string }) {
     </section>
   );
 }
-export function Registration() {
-  const { state, error } = usePublic();
+export function Registration({ slug }: { slug: string }) {
+  const { state, error } = usePublic(slug);
   const [category, setCategory] = useState(""),
     [captain, setCaptain] = useState("0"),
     [busy, setBusy] = useState(false),
@@ -329,9 +343,9 @@ export function Registration() {
     [done, setDone] = useState(false),
     [devLink, setDevLink] = useState("");
   return (
-    <PublicShell>
+    <PublicShell slug={slug} orgName={state?.organization?.name}>
       <main className="registration-page">
-        <Link className="back-link" href="/portal">
+        <Link className="back-link" href={`/${slug}/portal`}>
           <ArrowLeft size={15} />
           Volver al torneo
         </Link>
@@ -380,6 +394,7 @@ export function Registration() {
               const d = new FormData(e.currentTarget);
               try {
                 const r = await mutate("/v1/registrations", {
+                  slug,
                   name: formValue(d, "name"),
                   players: [
                     { name: formValue(d, "player1") },
@@ -460,36 +475,36 @@ export function Registration() {
     </PublicShell>
   );
 }
-export function Verification() {
+export function Verification({ slug }: { slug: string }) {
   const [status, setStatus] = useState("Verificando tu correo…");
   const started = useRef(false);
   useEffect(() => {
     if (started.current) return;
     started.current = true;
     const token = location.hash.slice(1);
-    history.replaceState(null, "", "/verificar");
+    history.replaceState(null, "", `/${slug}/verificar`);
     if (!token) {
       setStatus("El enlace no contiene un token de verificación.");
       return;
     }
     void mutate("/v1/verify", { token })
-      .then(() => location.replace("/mi-pareja"))
+      .then(() => location.replace(`/${slug}/mi-pareja`))
       .catch((e) => setStatus(e.message));
   }, []);
   return (
-    <PublicShell>
+    <PublicShell slug={slug}>
       <main className="registration-page">
         <h1>Verificación de inscripción</h1>
         <Alert>
           <AlertDescription>{status}</AlertDescription>
         </Alert>
-        <Link href="/mi-pareja">Ir a mi pareja</Link>
+        <Link href={`/${slug}/mi-pareja`}>Ir a mi pareja</Link>
       </main>
     </PublicShell>
   );
 }
-export function MyTeam() {
-  const { state, refresh } = usePublic();
+export function MyTeam({ slug }: { slug: string }) {
+  const { state, refresh } = usePublic(slug);
   const [team, setTeam] = useState<Team | null>(null),
     [ownMatches,setOwnMatches]=useState<Match[]>([]),
     [requests, setRequests] = useState<
@@ -528,7 +543,7 @@ export function MyTeam() {
     }
   };
   return (
-    <PublicShell>
+    <PublicShell slug={slug} orgName={state?.organization?.name}>
       <main className="registration-page wide">
         <div className="eyebrow">ESPACIO DEL CAPITÁN</div>
         <h1>{team?.name || "Gestiona tu pareja."}</h1>
@@ -543,6 +558,7 @@ export function MyTeam() {
                 const d = new FormData(e.currentTarget);
                 try {
                   await mutate("/v1/magic-link", {
+                    slug,
                     email: formValue(d, "email"),
                   });
                   setSent(true);

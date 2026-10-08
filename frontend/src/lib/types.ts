@@ -103,6 +103,7 @@ export type Standing = {
   tie: boolean;
 };
 export type State = {
+  organization: { id: string; name: string; slug: string };
   tournament: {
     id: string;
     name: string;

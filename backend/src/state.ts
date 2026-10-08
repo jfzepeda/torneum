@@ -2,15 +2,19 @@ import type { Db } from "./db.js";
 import { ensure } from "./db.js";
 import { resolvedStandings } from "./padel.js";
 import type { Actor } from "./auth.js";
-export async function getState(db: Db, actor?: Actor, archiveId?:string) {
+export async function getState(db: Db, who: Actor | string, archiveId?:string) {
+  const actor = typeof who === "string" ? undefined : who;
+  const orgId = typeof who === "string" ? who : who.organization_id;
+  const organization = (await db.query("SELECT id,name,slug FROM organizations WHERE id=$1", [orgId])).rows[0];
   const t = (
     await db.query(
-      archiveId?"SELECT * FROM tournaments WHERE id=$1 AND organization_id=$2 AND status='archived'":actor?"SELECT * FROM tournaments WHERE organization_id=$1 AND status<>'archived' ORDER BY created_at DESC LIMIT 1":"SELECT * FROM tournaments WHERE status<>'archived' ORDER BY created_at DESC LIMIT 1",
-      archiveId?[archiveId,actor!.organization_id]:actor?[actor.organization_id]:[],
+      archiveId?"SELECT * FROM tournaments WHERE id=$1 AND organization_id=$2 AND status='archived'":"SELECT * FROM tournaments WHERE organization_id=$1 AND status<>'archived' ORDER BY created_at DESC LIMIT 1",
+      archiveId?[archiveId,orgId]:[orgId],
     )
   ).rows[0];
   if (!t)
     return {
+      organization,
       tournament: null,
       categories: [],
       teams: [],
@@ -126,6 +130,7 @@ export async function getState(db: Db, actor?: Actor, archiveId?:string) {
     oauth,
   ] = results;
   return {
+    organization,
     tournament: t,
     categories: categories.rows,
     teams: teams.rows,

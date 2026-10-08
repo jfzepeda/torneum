@@ -10,7 +10,9 @@ import { Sparkles } from "lucide-react";
 export function ChatPanel({
   agent,
   enabled,
+  slug,
 }: {
+  slug?: string;
   agent: "public" | "admin" | "sponsors";
   enabled: boolean;
 }) {
@@ -40,7 +42,7 @@ export function ChatPanel({
             src="https://cdn.platform.openai.com/deployments/chatkit/chatkit.js"
             strategy="afterInteractive"
           />
-          <ConnectedChat agent={agent} onError={setError} />
+          <ConnectedChat agent={agent} slug={slug} onError={setError} />
         </>
       ) : (
         <Button onClick={() => setStarted(true)}>
@@ -53,8 +55,10 @@ export function ChatPanel({
 }
 function ConnectedChat({
   agent,
+  slug,
   onError,
 }: {
+  slug?: string;
   agent: "public" | "admin" | "sponsors";
   onError: (message: string) => void;
 }) {
@@ -64,10 +68,10 @@ function ConnectedChat({
   const { control } = useChatKit({
     async onClientTool(call){
       try{
-        if(['public_state','operational_state','sponsor_state'].includes(call.name))return await mutate('/v1/agent/tools',{agent,tool:call.name});
+        if(['public_state','operational_state','sponsor_state'].includes(call.name))return await mutate('/v1/agent/tools',{agent,slug,tool:call.name});
         if(call.name!=='propose_action')return {error:'Herramienta no permitida'};
         if(resolveTool.current)return {error:'Confirma o cancela la propuesta anterior primero.'};
-        const result=await mutate('/v1/agent/prepare',{agent,route:call.params.route,payload:call.params.payload});
+        const result=await mutate('/v1/agent/prepare',{agent,slug,route:call.params.route,payload:call.params.payload});
         setProposal(result.proposal as {id:string;summary:string[]});
         return await new Promise<Record<string,unknown>>(resolve=>{resolveTool.current=resolve;});
       }catch(e){return {error:e instanceof Error?e.message:'No se pudo preparar la acción'};}
@@ -75,7 +79,7 @@ function ConnectedChat({
     api: {
       async getClientSecret() {
         try {
-          const r = await mutate("/v1/chatkit/session", { agent });
+          const r = await mutate("/v1/chatkit/session", { agent, slug });
           return r.client_secret as string;
         } catch (e) {
           onError(e instanceof Error ? e.message : "Error de conexión");

@@ -1,29 +1,51 @@
-import { pool, transaction } from "./db.js";
+import { pool, transaction, type Db } from "./db.js";
 import { hashPassword } from "./auth.js";
 import { draw, changeSchedule, reportResult } from "./competition.js";
 import { randomBytes } from "node:crypto";
+async function seedPlatformAdmin(db: Db) {
+  if ((await db.query("SELECT 1 FROM platform_admins LIMIT 1")).rowCount) return;
+  const password = randomBytes(18).toString("base64url");
+  await db.query(
+    "INSERT INTO platform_admins(email,name,password_hash) VALUES('admin@plataforma.local','Plataforma',$1)",
+    [hashPassword(password)],
+  );
+  return password;
+}
+async function writeCredentials(club: string | null, platform?: string) {
+  if (!club && !platform) return;
+  const { writeFile, readFile } = await import("node:fs/promises");
+  const old = (await readFile(".admin-credentials", "utf8").catch(() => "")).trim();
+  await writeFile(
+    ".admin-credentials",
+    (club ? `admin@torneum.local\n${club}\n` : old ? old + "\n" : "") +
+      (platform ? `admin@plataforma.local\n${platform}\n` : ""),
+    { mode: 0o600 },
+  );
+  console.log(
+    "Credenciales locales guardadas en backend/.admin-credentials (0600).",
+  );
+}
 export async function seed(demo = false) {
   return transaction(async (db) => {
-    if ((await db.query("SELECT 1 FROM organizations LIMIT 1")).rowCount)
+    const platformPassword = await seedPlatformAdmin(db);
+    if (
+      (await db.query("SELECT 1 FROM organizations WHERE slug='club-torneum'"))
+        .rowCount
+    ) {
+      await writeCredentials(null, platformPassword);
       return;
+    }
     const org = (
       await db.query(
-        "INSERT INTO organizations(name) VALUES('Club Torneum') RETURNING id",
+        "INSERT INTO organizations(name,slug) VALUES('Club Torneum','club-torneum') RETURNING id",
       )
     ).rows[0];
     const password =
       process.env.ADMIN_PASSWORD || randomBytes(18).toString("base64url");
-    if (!process.env.ADMIN_PASSWORD) {
-      const { writeFile } = await import("node:fs/promises");
-      await writeFile(
-        ".admin-credentials",
-        `admin@torneum.local\n${password}\n`,
-        { mode: 0o600 },
-      );
-      console.log(
-        "Credenciales locales guardadas en backend/.admin-credentials (0600).",
-      );
-    }
+    await writeCredentials(
+      process.env.ADMIN_PASSWORD ? null : password,
+      platformPassword,
+    );
     const user = (
       await db.query(
         "INSERT INTO users(organization_id,name,email,password_hash,role) VALUES($1,'Organizador','admin@torneum.local',$2,'admin') RETURNING id",

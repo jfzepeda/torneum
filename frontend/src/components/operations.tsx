@@ -150,7 +150,7 @@ export function Operations({
             Nueva categoría
           </Button>
         ) : view === "inscripciones" ? (
-          <Button nativeButton={false} render={<Link href="/inscripcion" />}>
+          <Button nativeButton={false} render={<Link href={`/${state.organization.slug}/inscripcion`} />}>
             <Plus data-icon="inline-start" />
             Inscribir pareja
           </Button>

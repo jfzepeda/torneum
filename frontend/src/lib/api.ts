@@ -10,7 +10,9 @@ export async function get<T>(path: string): Promise<T> {
     credentials: "include",
     cache: "no-store",
   });
-  const result = await response.json();
+  const result = await response.json().catch(() => ({}));
+  if (response.status === 404 && path.startsWith("/v1/public/"))
+    throw new Error("Club no encontrado");
   if (!response.ok)
     throw new Error(
       result.error?.message || "No se pudo cargar la información.",

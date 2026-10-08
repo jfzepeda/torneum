@@ -11,6 +11,7 @@
     "test": "node --import tsx --test tests/*.test.ts",
     "migrate": "node --import tsx --env-file-if-exists=.env src/migrate.ts",
     "seed": "node --import tsx --env-file-if-exists=.env src/seed.ts",
+    "platform:admin": "node --import tsx --env-file-if-exists=.env src/platform-admin.ts",
     "openapi": "node --import tsx src/export-openapi.ts"
   },
   "dependencies": {

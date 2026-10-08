@@ -26,6 +26,7 @@ import {
   newToken,
   verifyPassword,
   hashPassword,
+  resolveOrg,
   type Actor,
 } from "./auth.js";
 import { getState } from "./state.js";
@@ -40,7 +41,9 @@ import { sendVerification, encrypt } from "./integrations.js";
 import { prospectScore, standings, resultsHash } from "./padel.js";
 import {researchSponsors} from "./research.js";
 import { registerRealtime } from "./realtime.js";
+import { registerPlatform } from "./platform.js";
 const id = z.string().uuid(),
+  slug = z.string().trim().toLowerCase().min(1).max(60),
   short = z.string().trim().min(1).max(150),
   email = z
     .email()
@@ -166,16 +169,23 @@ export async function buildApp() {
         response: { 200: { type: "object", additionalProperties: true } },
       },
     },
-    async (req) => getState(pool, await getActor(req)),
+    async (req) => {
+      const a = await getActor(req);
+      ensure(a, "Inicia sesión para continuar.", 401);
+      return getState(pool, a);
+    },
   );
   app.get(
-    "/v1/public",
+    "/v1/public/:slug",
     {
       schema: {
         response: { 200: { type: "object", additionalProperties: true } },
       },
     },
-    async () => getState(pool),
+    async (req) => {
+      const p = z.object({ slug }).parse(req.params);
+      return getState(pool, (await resolveOrg(pool, p.slug)).id);
+    },
   );
   app.get('/v1/archive/:id',async req=>{const actor=await getActor(req);ensure(actor&&actor.role!=='participant','Se requiere una sesión de colaborador.',403);const params=z.object({id}).parse(req.params);return getState(pool,actor,params.id);});
   app.get("/v1/openapi", async () => app.swagger());
@@ -252,13 +262,15 @@ export async function buildApp() {
   }
   post(
     "/v1/login",
-    z.object({ email, password: z.string().min(1).max(200) }),
+    z.object({ slug, email, password: z.string().min(1).max(200) }),
     null,
     async (b, _a, db, req, reply) => {
+      const org = await resolveOrg(db, b.slug);
       const u = (
-        await db.query("SELECT * FROM users WHERE email=$1 AND active=true", [
-          b.email,
-        ])
+        await db.query(
+          "SELECT * FROM users WHERE organization_id=$1 AND lower(email)=lower($2) AND active=true",
+          [org.id, b.email],
+        )
       ).rows[0];
       const dummy = "00000000000000000000000000000000:" + "00".repeat(64);
       ensure(
@@ -285,6 +297,7 @@ export async function buildApp() {
   post(
     "/v1/registrations",
     z.object({
+      slug,
       category_id: id,
       name: short,
       players,
@@ -294,10 +307,11 @@ export async function buildApp() {
     }),
     null,
     async (b, _a, db) => {
+      const org = await resolveOrg(db, b.slug);
       const c = (
         await db.query(
-          "SELECT c.*,t.registration_open FROM categories c JOIN tournaments t ON t.id=c.tournament_id WHERE c.id=$1 AND t.status<>'archived' FOR UPDATE OF c",
-          [b.category_id],
+          "SELECT c.*,t.registration_open FROM categories c JOIN tournaments t ON t.id=c.tournament_id WHERE c.id=$1 AND c.organization_id=$2 AND t.status<>'archived' FOR UPDATE OF c",
+          [b.category_id, org.id],
         )
       ).rows[0];
       ensure(
@@ -343,7 +357,7 @@ export async function buildApp() {
         "INSERT INTO verification_tokens VALUES($1,$2,$3,now()+interval '30 minutes',NULL)",
         [hashToken(token), c.organization_id, team.id],
       );
-      const url = front() + "/verificar#" + token;
+      const url = front() + "/" + org.slug + "/verificar#" + token;
       let development_link: string | undefined;
       if (
         process.env.DEV_MAILBOX === "true" &&
@@ -392,11 +406,12 @@ export async function buildApp() {
       return { ok: true };
     },
   );
-  post("/v1/magic-link", z.object({ email }), null, async (b, _a, db) => {
+  post("/v1/magic-link", z.object({ slug, email }), null, async (b, _a, db) => {
+    const org = await resolveOrg(db, b.slug);
     const t = (
       await db.query(
-        "SELECT team.* FROM teams team JOIN tournaments t ON t.id=team.tournament_id WHERE team.email=$1 AND t.status<>'archived'",
-        [b.email],
+        "SELECT team.* FROM teams team JOIN tournaments t ON t.id=team.tournament_id WHERE team.organization_id=$1 AND team.email=$2 AND t.status<>'archived'",
+        [org.id, b.email],
       )
     ).rows[0];
     if (t && process.env.SMTP_URL) {
@@ -405,7 +420,7 @@ export async function buildApp() {
         "INSERT INTO verification_tokens VALUES($1,$2,$3,now()+interval '30 minutes',NULL)",
         [hashToken(token), t.organization_id, t.id],
       );
-      await sendVerification(t.email, front() + "/verificar#" + token);
+      await sendVerification(t.email, front() + "/" + org.slug + "/verificar#" + token);
     }
     return { ok: true };
   });
@@ -954,6 +969,16 @@ export async function buildApp() {
     }),
     "admin",
     async (b, a, db) => {
+      ensure(
+        !(
+          await db.query(
+            "SELECT 1 FROM users WHERE organization_id=$1 AND lower(email)=lower($2)",
+            [a!.organization_id, b.email],
+          )
+        ).rowCount,
+        "Ya existe un usuario con ese correo.",
+        409,
+      );
       const u = (
         await db.query(
           "INSERT INTO users(organization_id,name,email,password_hash,role) VALUES($1,$2,$3,$4,$5) RETURNING id",
@@ -979,12 +1004,15 @@ export async function buildApp() {
     "admin",
     async (b, a, db) => {
       ensure(b.id !== a!.id, "No puedes desactivar tu propia sesión.");
-      await db.query(
+      const r = await db.query(
         "UPDATE users SET active=$3 WHERE id=$1 AND organization_id=$2",
         [b.id, a!.organization_id, b.active],
       );
+      ensure(r.rowCount, "Usuario no encontrado.", 404);
       if (!b.active)
-        await db.query("DELETE FROM sessions WHERE user_id=$1", [b.id]);
+        await db.query("DELETE FROM sessions WHERE user_id=$1 AND organization_id=$2",
+          [b.id, a!.organization_id],
+        );
       await audit(db, a!.organization_id, a!.id, "user.access", b.id, null, {
         active: b.active,
       });
@@ -997,6 +1025,7 @@ export async function buildApp() {
   post('/v1/my-team/profile',z.object({description:z.string().max(500),notifications:z.boolean()}),'own',async(b,a,db)=>{await db.query('UPDATE teams SET description=$2,notifications=$3 WHERE id=$1 AND organization_id=$4',[a!.team_id,b.description,b.notifications,a!.organization_id]);await audit(db,a!.organization_id,a!.id,'team.profile',a!.team_id!,null,b);return {ok:true};});
   registerAgentActions(post,actionRegistry);
   registerRealtime(app);
+  registerPlatform(app);
   return app;
 }
 async function active(db: Db, a: Actor) {
@@ -1355,13 +1384,19 @@ async function registerCommercial(post: Post, app: FastifyInstance) {
         connected: true,
       });
     });
-    return reply.redirect(front() + "/?view=patrocinadores");
+    const o = (
+      await pool.query("SELECT slug FROM organizations WHERE id=$1", [
+        a.organization_id,
+      ])
+    ).rows[0];
+    return reply.redirect(front() + "/" + o.slug + "?view=patrocinadores");
   });
   post(
     "/v1/chatkit/session",
-    z.object({ agent: z.enum(["public", "admin", "sponsors"]) }),
+    z.object({ agent: z.enum(["public", "admin", "sponsors"]), slug: slug.optional() }),
     null,
-    async (b, a) => {
+    async (b, a, db) => {
+      const guestOrg = !a && b.agent === "public" && b.slug ? (await resolveOrg(db, b.slug)).id : undefined;
       if (b.agent === "admin")
         ensure(
           a && a.role !== "participant",
@@ -1389,7 +1424,7 @@ async function registerCommercial(post: Post, app: FastifyInstance) {
             workflow: { id: workflow },
             user: a
               ? `${b.agent}:${a.organization_id}:${a.id}`
-              : `public:${newToken()}`,
+              : `public:${guestOrg || ""}:${newToken()}`,
           }),
         },
       );
@@ -1404,10 +1439,15 @@ async function registerCommercial(post: Post, app: FastifyInstance) {
     z.object({
       agent: z.enum(["public", "admin", "sponsors"]),
       tool: z.enum(["public_state", "operational_state", "sponsor_state"]),
+      slug: slug.optional(),
     }),
     null,
     async (b, a, db) => {
-      if (b.tool === "public_state") return getState(db);
+      if (b.tool === "public_state") {
+        if (a) return getState(db, a.organization_id);
+        ensure(b.slug, "Indica el club.", 400);
+        return getState(db, (await resolveOrg(db, b.slug)).id);
+      }
       ensure(
         b.agent !== "public",
         "El agente público no puede usar herramientas internas.",
@@ -1424,7 +1464,7 @@ async function registerCommercial(post: Post, app: FastifyInstance) {
         agent: b.agent,
         tool: b.tool,
       });
-      return getState(db, a);
+      return getState(db, a!);
     },
   );
 }

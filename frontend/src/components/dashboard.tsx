@@ -110,7 +110,7 @@ const nav = [
     ],
   },
 ] as const;
-export function Dashboard() {
+export function Dashboard({ slug }: { slug: string }) {
   const [state, setState] = useState<State | null>(null),
     [actor, setActor] = useState<Actor | null>(null),
     [loaded, setLoaded] = useState(false),
@@ -139,7 +139,7 @@ export function Dashboard() {
     void refresh();
     const desired = new URLSearchParams(location.search).get("view");
     if (desired) setView(desired);
-    const events = new EventSource(API + "/v1/events");
+    const events = new EventSource(API + `/v1/events?org=${slug}`);
     events.addEventListener("update", () => void refresh());
     const interval = setInterval(() => {
       if (document.visibilityState === "visible") void refresh();
@@ -152,7 +152,7 @@ export function Dashboard() {
   const go = (target: string) => {
     setView(target);
     setSearch("");
-    history.replaceState(null, "", "?view=" + target);
+    history.replaceState(null, "", `/${slug}?view=${target}`);
   };
   const action: Action = async (path, body) => {
     try {
@@ -180,6 +180,7 @@ export function Dashboard() {
   if (!actor || actor.role === "participant")
     return (
       <Login
+        slug={slug}
         onLogin={refresh}
         error={error}
         participant={actor?.role === "participant"}
@@ -208,7 +209,7 @@ export function Dashboard() {
     >
       <Sidebar>
         <SidebarHeader>
-          <Link href="/" className="brand">
+          <Link href={`/${slug}`} className="brand">
             <span className="brand-mark">t</span>torneum
             <span className="brand-period">.</span>
           </Link>
@@ -218,7 +219,7 @@ export function Dashboard() {
             </span>
             <div>
               <strong>{state.tournament.name}</strong>
-              <small>Pádel · Temporada 2026</small>
+              <small>{state.organization?.name}</small>
             </div>
             <ChevronRight size={14} />
           </div>
@@ -298,7 +299,7 @@ export function Dashboard() {
             <Button
               variant="outline"
               nativeButton={false}
-              render={<Link href="/portal" />}
+              render={<Link href={`/${slug}/portal`} />}
             >
               Ver portal público
               <ArrowUpRight data-icon="inline-end" />
@@ -329,7 +330,7 @@ export function Dashboard() {
             {view === "inicio" ? (
               <Button
                 nativeButton={false}
-                render={<Link href="/inscripcion" />}
+                render={<Link href={`/${slug}/inscripcion`} />}
               >
                 <Plus data-icon="inline-start" />
                 Nueva inscripción
@@ -374,7 +375,7 @@ export function Dashboard() {
             </SheetDescription>
           </SheetHeader>
           <div className="p-5">
-            <ChatPanel agent="admin" enabled={state.integrations.chatkit} />
+            <ChatPanel agent="admin" slug={slug} enabled={state.integrations.chatkit} />
           </div>
         </SheetContent>
       </Sheet>
@@ -398,10 +399,12 @@ const descriptions: Record<string, string> = {
   archivo: "La historia de tus torneos, en un solo lugar.",
 };
 function Login({
+  slug,
   onLogin,
   error,
   participant,
 }: {
+  slug: string;
   onLogin: () => Promise<void>;
   error: string;
   participant?: boolean;
@@ -411,7 +414,7 @@ function Login({
   return (
     <main className="login-page">
       <section className="login-story">
-        <Link href="/portal" className="brand">
+        <Link href={`/${slug}/portal`} className="brand">
           <span className="brand-mark">t</span>torneum.
         </Link>
         <div>
@@ -443,7 +446,7 @@ function Login({
           <Alert>
             <AlertDescription>
               Ya tienes una sesión de capitán.{" "}
-              <Link href="/mi-pareja">Ir a mi pareja</Link>.
+              <Link href={`/${slug}/mi-pareja`}>Ir a mi pareja</Link>.
             </AlertDescription>
           </Alert>
         )}
@@ -459,6 +462,7 @@ function Login({
             const d = new FormData(e.currentTarget);
             try {
               await mutate("/v1/login", {
+                slug,
                 email: formValue(d, "email"),
                 password: formValue(d, "password"),
               });
@@ -482,11 +486,11 @@ function Login({
           </FieldGroup>
         </form>
         <div className="login-links">
-          <Link href="/portal">
+          <Link href={`/${slug}/portal`}>
             Consultar el torneo
             <ArrowUpRight size={14} />
           </Link>
-          <Link href="/inscripcion">
+          <Link href={`/${slug}/inscripcion`}>
             Inscribir mi pareja
             <ArrowUpRight size={14} />
           </Link>

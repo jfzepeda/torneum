@@ -1,12 +1,13 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { randomUUID, randomBytes } from "node:crypto";
 import { buildApp } from "../src/app.js";
 import { pool } from "../src/db.js";
 import { hashPassword, hashToken, newToken } from "../src/auth.js";
 const enabled = !!process.env.TEST_DATABASE_URL;
 let app: Awaited<ReturnType<typeof buildApp>>,
   org: string,
+  slug: string,
   tournament: string,
   category: string,
   adminCookie: string,
@@ -34,9 +35,11 @@ before(async () => {
   );
   app = await buildApp();
   await app.ready();
+  slug = "it-" + randomBytes(6).toString("hex");
   org = (
     await pool.query(
-      "INSERT INTO organizations(name) VALUES('Integration test') RETURNING id",
+      "INSERT INTO organizations(name,slug) VALUES('Integration test',$1) RETURNING id",
+      [slug],
     )
   ).rows[0].id;
   tournament = (
@@ -133,6 +136,7 @@ test(
       const response = await post(
         "/v1/registrations",
         {
+          slug,
           category_id: category,
           name: "Team " + i,
           players: [
@@ -154,7 +158,8 @@ test(
       );
       assert.equal((await post("/v1/verify", { token }, "")).statusCode, 400);
       const team = (
-        await pool.query("SELECT * FROM teams WHERE email=$1", [
+        await pool.query("SELECT * FROM teams WHERE organization_id=$1 AND email=$2", [
+          org,
           `captain-${org}-${i}@example.invalid`,
         ])
       ).rows[0];
@@ -336,7 +341,7 @@ test(
       ).statusCode,
       200,
     );
-    const publicState = (await app.inject({ url: "/v1/public" })).json();
+    const publicState = (await app.inject({ url: "/v1/public/" + slug })).json();
     assert.ok(publicState.teams.every((t: any) => !("email" in t)));
     assert.equal(
       publicState.matches.find((x: any) => x.id === m.id).score,

@@ -291,7 +291,7 @@ export function Sponsors({ state, actor, action }: ViewProps) {
         </section>
       </TabsContent>
       <TabsContent value="agent"><Research action={action}/>
-        <ChatPanel agent="sponsors" enabled={state.integrations.chatkit} />
+        <ChatPanel agent="sponsors" slug={state.organization?.slug} enabled={state.integrations.chatkit} />
       </TabsContent>
       <Modal
         title={draft ? "Editar prospecto" : "Nuevo prospecto"}

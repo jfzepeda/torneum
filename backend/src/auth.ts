@@ -5,7 +5,7 @@ import {
   createHash,
 } from "node:crypto";
 import type { FastifyRequest } from "fastify";
-import { pool, DomainError } from "./db.js";
+import { pool, DomainError, type Db } from "./db.js";
 export type Role =
   | "admin"
   | "registration"
@@ -61,7 +61,7 @@ export async function getActor(
   const token = req.cookies.torneum_session;
   if (!token) return;
   const { rows } = await pool.query(
-    `SELECT s.organization_id,s.user_id,s.team_id,u.name,u.role,t.name team_name FROM sessions s LEFT JOIN users u ON u.id=s.user_id AND u.active=true LEFT JOIN teams t ON t.id=s.team_id WHERE token_hash=$1 AND expires_at>now()`,
+    `SELECT s.organization_id,s.user_id,s.team_id,u.name,u.role,t.name team_name FROM sessions s JOIN organizations o ON o.id=s.organization_id AND o.active LEFT JOIN users u ON u.id=s.user_id AND u.active=true AND u.organization_id=s.organization_id LEFT JOIN teams t ON t.id=s.team_id AND t.organization_id=s.organization_id WHERE token_hash=$1 AND expires_at>now()`,
     [hashToken(token)],
   );
   const s = rows[0];
@@ -73,4 +73,17 @@ export async function getActor(
     name: s.name || s.team_name,
     team_id: s.team_id || undefined,
   };
+}
+export async function resolveOrg(
+  db: Db,
+  slug: string,
+): Promise<{ id: string; name: string; slug: string }> {
+  const o = (
+    await db.query(
+      "SELECT id,name,slug FROM organizations WHERE slug=$1 AND active",
+      [slug],
+    )
+  ).rows[0];
+  if (!o) throw new DomainError(404, "Club no encontrado.");
+  return o;
 }

@@ -105,18 +105,19 @@ export async function processOutbox() {
         await db.query("SELECT pg_try_advisory_xact_lock(918231) locked")
       ).rows[0];
       if (!lock.locked) return;
-      const m = (
+      // One message per organization per tick, so one club's queue never blocks the others.
+      const due = (
         await db.query(
-          "SELECT m.*,s.email,s.status sponsor_status FROM messages m JOIN sponsors s ON s.id=m.sponsor_id WHERE m.status='queued' AND m.next_attempt_at<=now() AND m.approved_by IS NOT NULL AND NOT EXISTS(SELECT 1 FROM messages recent WHERE recent.organization_id=m.organization_id AND recent.sent_at>now()-interval '15 seconds') ORDER BY m.created_at FOR UPDATE OF m SKIP LOCKED LIMIT 1",
+          "SELECT DISTINCT ON (m.organization_id) m.*,s.email,s.status sponsor_status FROM messages m JOIN sponsors s ON s.id=m.sponsor_id WHERE m.status='queued' AND m.next_attempt_at<=now() AND m.approved_by IS NOT NULL AND NOT EXISTS(SELECT 1 FROM messages recent WHERE recent.organization_id=m.organization_id AND recent.sent_at>now()-interval '15 seconds') ORDER BY m.organization_id,m.created_at",
         )
-      ).rows[0];
-      if (!m) return;
+      ).rows;
+      for (const m of due) {
       if (m.sponsor_status === "excluded") {
         await db.query(
           "UPDATE messages SET status='cancelled',error='Contacto excluido' WHERE id=$1",
           [m.id],
         );
-        return;
+        continue;
       }
       await db.query(
         "UPDATE messages SET status='sending',attempts=attempts+1 WHERE id=$1",
@@ -143,6 +144,7 @@ export async function processOutbox() {
           "UPDATE messages SET status='failed',error=$2 WHERE id=$1",
           [m.id, error instanceof Error ? error.message : "Fallo de envío"],
         );
+      }
       }
     });
   } finally {
