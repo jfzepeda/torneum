@@ -1,3 +1,4 @@
+import { reconcilePayments, sendRegistrationNotifications } from "./payments.js";
 import { buildApp } from "./app.js";
 import { pool } from "./db.js";
 import { processOutbox } from "./integrations.js";
@@ -14,8 +15,13 @@ const worker =
         15000,
       )
     : undefined;
+const paymentsWorker = setInterval(() => {
+  void reconcilePayments().catch(error => app.log.error(error));
+  void sendRegistrationNotifications().catch(error => app.log.error(error));
+}, 15000);
 for (const signal of ["SIGINT", "SIGTERM"])
   process.on(signal, async () => {
+    clearInterval(paymentsWorker);
     if (worker) clearInterval(worker);
     await app.close();
     await pool.end();

@@ -1,4 +1,5 @@
 "use client";
+import { ParticipantPayment, money, type RegistrationPayment } from "./payments";
 import {TeamProfile} from "./profile";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -342,6 +343,7 @@ export function Registration({ slug }: { slug: string }) {
     [message, setMessage] = useState(""),
     [done, setDone] = useState(false),
     [devLink, setDevLink] = useState("");
+  const selected = state?.categories.find(c=>c.id === (category || state.categories[0]?.id));
   return (
     <PublicShell slug={slug} orgName={state?.organization?.name}>
       <main className="registration-page">
@@ -350,9 +352,9 @@ export function Registration({ slug }: { slug: string }) {
           Volver al torneo
         </Link>
         <div className="eyebrow">EL PRIMER PASO HACIA LA CANCHA</div>
-        <h1>Inscriban su pareja.</h1>
+        <h1>Registra tu participación.</h1>
         <p>
-          Una persona registra a ambos jugadores. Sin cuentas ni contraseñas.
+          Una persona registra a los participantes. Verifica el correo para continuar al pago.
         </p>
         {error && (
           <Alert variant="destructive">
@@ -365,7 +367,7 @@ export function Registration({ slug }: { slug: string }) {
             <h2>Un paso más y están dentro.</h2>
             <p>
               Verifica el correo del capitán con el enlace enviado. Después
-              podrás gestionar la inscripción.
+              podrás gestionar la inscripción y completar el pago si tiene costo.
             </p>
             {devLink && (
               <Alert>
@@ -396,11 +398,8 @@ export function Registration({ slug }: { slug: string }) {
                 const r = await mutate("/v1/registrations", {
                   slug,
                   name: formValue(d, "name"),
-                  players: [
-                    { name: formValue(d, "player1") },
-                    { name: formValue(d, "player2") },
-                  ],
-                  captain: Number(captain),
+                  players: Array.from({length:selected?.participant_count || 2},(_,i)=>({name:formValue(d,`player${i+1}`)})),
+                  captain: Math.min(Number(captain),(selected?.participant_count || 2)-1),
                   email: formValue(d, "email"),
                   phone: formValue(d, "phone"),
                   category_id: category || state?.categories[0]?.id,
@@ -417,21 +416,17 @@ export function Registration({ slug }: { slug: string }) {
             <FieldGroup>
               <TextField
                 name="name"
-                label="Nombre de la pareja"
+                label="Nombre de la inscripción"
                 placeholder="Apellido / Apellido"
               />
               <FieldGroup className="grid sm:grid-cols-2 gap-5">
-                <TextField name="player1" label="Jugador 1 · nombre completo" />
-                <TextField name="player2" label="Jugador 2 · nombre completo" />
+                {Array.from({length:selected?.participant_count || 2},(_,i)=><TextField key={i} name={`player${i+1}`} label={`Participante ${i+1} · nombre completo`}/>)}
               </FieldGroup>
               <Choice
-                label="Capitán de la pareja"
+                label="Responsable de la inscripción"
                 value={captain}
                 onChange={setCaptain}
-                options={[
-                  { value: "0", label: "Jugador 1" },
-                  { value: "1", label: "Jugador 2" },
-                ]}
+                options={Array.from({length:selected?.participant_count || 2},(_,i)=>({value:String(i),label:`Participante ${i+1}`}))}
               />
               <Choice
                 label="Categoría"
@@ -443,6 +438,8 @@ export function Registration({ slug }: { slug: string }) {
                     .map((c) => ({ value: c.id, label: c.name })) || []
                 }
               />
+              <p>{money(selected?.price_cents || 0)} MXN · {selected?.payment_mode === "free" ? "Inscripción gratuita" : selected?.payment_mode === "external" ? "Pago externo con el organizador" : "Pago con tarjeta en Stripe"}</p>
+              <p>{selected?.payment_policy}</p>
               <TextField name="email" label="Correo del capitán" type="email" />
               <TextField
                 name="phone"
@@ -452,14 +449,14 @@ export function Registration({ slug }: { slug: string }) {
               />
               <Alert>
                 <AlertDescription>
-                  La inscripción incluye los datos de ambos jugadores. El
-                  capitán debe contar con su autorización. La categoría está
+                  La inscripción incluye los datos de los participantes. El
+                  responsable debe contar con su autorización. La categoría está
                   sujeta a revisión del organizador.
                 </AlertDescription>
               </Alert>
               <label className="consent">
                 <input type="checkbox" required />
-                Confirmo que ambos jugadores autorizan el registro y la
+                Acepto las políticas del organizador y confirmo que los participantes autorizan el registro y la
                 publicación de sus nombres y resultados.
               </label>
               {message && (
@@ -467,7 +464,7 @@ export function Registration({ slug }: { slug: string }) {
                   <AlertDescription>{message}</AlertDescription>
                 </Alert>
               )}
-              <Submit busy={busy} label="Registrar pareja y verificar correo" />
+              <Submit busy={busy} label="Registrar y verificar correo" />
             </FieldGroup>
           </form>
         )}
@@ -505,6 +502,7 @@ export function Verification({ slug }: { slug: string }) {
 }
 export function MyTeam({ slug }: { slug: string }) {
   const { state, refresh } = usePublic(slug);
+  const [registrationPayment,setRegistrationPayment] = useState<RegistrationPayment | null>(null);
   const [team, setTeam] = useState<Team | null>(null),
     [ownMatches,setOwnMatches]=useState<Match[]>([]),
     [requests, setRequests] = useState<
@@ -518,10 +516,10 @@ export function MyTeam({ slug }: { slug: string }) {
     [result, setResult] = useState<Match | null>(null);
   const load = useCallback(async () => {
     try {
-      const r = await get<{ team: Team; requests: typeof requests; matches:Match[] }>(
+      const r = await get<{ team: Team; requests: typeof requests; matches:Match[]; registration: RegistrationPayment | null }>(
         "/v1/my-team",
       );
-      setTeam(r.team);setOwnMatches(r.matches);
+      setTeam(r.team);setOwnMatches(r.matches);setRegistrationPayment(r.registration);
       setRequests(r.requests);
       setError("");
     } catch (e) {
@@ -601,6 +599,7 @@ export function MyTeam({ slug }: { slug: string }) {
               </div>
               <Status value={team.status} />
             </section>
+            {registrationPayment && <ParticipantPayment registration={registrationPayment} refresh={load}/>}
             <h2 className="section-title">Tus partidos</h2>
             <div className="public-matches">
               {ownMatches

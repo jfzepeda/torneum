@@ -41,6 +41,8 @@ import { sendVerification, encrypt } from "./integrations.js";
 import { prospectScore, standings, resultsHash } from "./padel.js";
 import {researchSponsors} from "./research.js";
 import { registerRealtime } from "./realtime.js";
+import { registerPaymentRoutes } from "./payment-routes.js";
+import { registerPayment } from "./payments.js";
 import { registerPlatform } from "./platform.js";
 const id = z.string().uuid(),
   slug = z.string().trim().toLowerCase().min(1).max(60),
@@ -110,7 +112,8 @@ export async function buildApp() {
   app.addHook("onRequest", async (req) => {
     if (
       !["GET", "HEAD", "OPTIONS"].includes(req.method) &&
-      req.headers.origin !== front()
+      req.headers.origin !== front() &&
+      req.url.split("?")[0] !== "/v1/webhooks/stripe"
     )
       throw new DomainError(403, "Origen no autorizado.");
   });
@@ -300,8 +303,8 @@ export async function buildApp() {
       slug,
       category_id: id,
       name: short,
-      players,
-      captain: z.number().int().min(0).max(1),
+      players: z.array(z.object({ name: short })).min(1).max(100),
+      captain: z.number().int().min(0).max(99),
       email,
       phone: z.string().max(30).default(""),
     }),
@@ -319,10 +322,15 @@ export async function buildApp() {
         "Inscripciones cerradas.",
       );
       ensure(
-        b.players[0].name.toLowerCase() !== b.players[1].name.toLowerCase(),
-        "La pareja debe tener dos jugadores distintos.",
+        b.players.length === c.participant_count && b.captain < b.players.length && new Set(b.players.map(p => p.name.toLowerCase())).size === b.players.length,
+        "Revisa el número de participantes y sus nombres distintos.",
         400,
       );
+      ensure((!c.registration_starts_at || new Date(c.registration_starts_at).getTime() <= Date.now()) && (!c.registration_ends_at || new Date(c.registration_ends_at).getTime() > Date.now()), "Inscripciones fuera de plazo.");
+      if (c.payment_mode === 'stripe') {
+        const account = (await db.query('SELECT 1 FROM tenant_payment_accounts WHERE organization_id=$1 AND connected AND charges_enabled', [org.id])).rowCount;
+        ensure(account, "El organizador todavía no está habilitado para cobrar.");
+      }
       const count = (
         await db.query(
           "SELECT count(*) FROM teams WHERE category_id=$1 AND status NOT IN ('rejected','withdrawn')",
@@ -352,6 +360,7 @@ export async function buildApp() {
           ],
         )
       ).rows[0];
+      const registration = await registerPayment(db, c, team.id);
       const token = newToken();
       await db.query(
         "INSERT INTO verification_tokens VALUES($1,$2,$3,now()+interval '30 minutes',NULL)",
@@ -374,7 +383,7 @@ export async function buildApp() {
         null,
         { status: "verification" },
       );
-      return { ok: true, development_link };
+      return { ok: true, development_link, registration_id: registration.id };
     },
   );
   post(
@@ -394,7 +403,7 @@ export async function buildApp() {
         [hashToken(b.token)],
       );
       await db.query(
-        "UPDATE teams SET verified_at=now(),status=CASE WHEN status='verification' THEN CASE WHEN (SELECT auto_approve FROM tournaments WHERE id=$2) THEN 'approved' ELSE 'pending' END ELSE status END WHERE id=$1",
+        "UPDATE teams SET verified_at=now(),status=CASE WHEN status='verification' THEN CASE WHEN (SELECT auto_approve FROM tournaments WHERE id=$2) AND NOT EXISTS(SELECT 1 FROM tournament_registrations WHERE team_id=teams.id AND status<>'CONFIRMED') THEN 'approved' ELSE 'pending' END ELSE status END WHERE id=$1",
         [v.team_id, v.tournament_id],
       );
       const token = newToken();
@@ -440,7 +449,8 @@ export async function buildApp() {
       )
     ).rows;
     const matches=(await pool.query('SELECT * FROM matches WHERE (home_id=$1 OR away_id=$1) AND organization_id=$2 ORDER BY starts_at NULLS LAST',[a.team_id,a.organization_id])).rows;
-    return { team, requests, matches };
+    const registration = (await pool.query('SELECT r.*,p.status payment_status,p.refunded_cents FROM tournament_registrations r LEFT JOIN registration_payments p ON p.registration_id=r.id WHERE r.team_id=$1 AND r.organization_id=$2', [a.team_id,a.organization_id])).rows[0] || null;
+    return { team, requests, matches, registration };
   });
   post(
     "/v1/registrations/review",
@@ -1026,6 +1036,7 @@ export async function buildApp() {
   registerAgentActions(post,actionRegistry);
   registerRealtime(app);
   registerPlatform(app);
+  await registerPaymentRoutes(app);
   return app;
 }
 async function active(db: Db, a: Actor) {

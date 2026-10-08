@@ -11,6 +11,8 @@ export type Actor = {
   team_id?: string;
 };
 export type Category = {
+  price_cents: number; payment_mode: string; participant_count: number;
+  registration_starts_at?: string | null; registration_ends_at?: string | null; payment_policy: string;
   id: string;
   name: string;
   capacity: number;

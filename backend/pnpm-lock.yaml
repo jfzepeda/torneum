@@ -35,6 +35,9 @@ importers:
       sharp:
         specifier: ^0.35.4
         version: 0.35.4(@types/node@22.20.2)
+      stripe:
+        specifier: ^23.0.0
+        version: 23.0.0(@types/node@22.20.2)
       zod:
         specifier: latest
         version: 4.6.1
@@ -835,6 +838,16 @@ packages:
   zod@4.6.1:
     resolution: {integrity: sha512-341aRWQsve0rvronKNTqZpjmzdbUDlFuzHaI/XLg/Ej82qffDJRRfBTCuv7+9q/rMjB6LSLyEBnW4InJeMtt/Q==}
 
+  stripe@23.0.0:
+    resolution: {integrity: sha512-MDE2A5ZVVluYURORaZEVghSmnLJc3w6aHAlZSxDQMsOjOb3V0O6ro/CiaeFlJS4N7uIVmsg98ocRsPmUK6YfyA==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      '@types/node': '>=20'
+    peerDependenciesMeta:
+      '@types/node':
+        optional: true
+
+
 snapshots:
 
   '@emnapi/runtime@1.11.3':
@@ -1487,3 +1500,7 @@ snapshots:
   yaml@2.9.0: {}
 
   zod@4.6.1: {}
+
+  stripe@23.0.0(@types/node@22.20.2):
+    optionalDependencies:
+      '@types/node': 22.20.2

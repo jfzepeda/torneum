@@ -1,4 +1,5 @@
 "use client";
+import { PaymentSettings } from "./payments";
 import {ArchiveDetails} from "./archive";
 import { useState } from "react";
 import { Plus, ShieldCheck } from "lucide-react";
@@ -241,6 +242,7 @@ export function Administration({
     );
   return (
     <div className="settings-layout">
+      <PaymentSettings state={state}/>
       <section className="panel settings-form">
         <div className="panel-heading">
           <div>
@@ -310,7 +312,7 @@ export function Administration({
                   Aprobación automática
                 </FieldLabel>
                 <FieldDescription>
-                  Confirma la categoría tras verificar el correo del capitán.
+                  Aprueba la participación cuando correo y pago estén confirmados.
                 </FieldDescription>
               </div>
               <Switch

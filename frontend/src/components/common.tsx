@@ -47,6 +47,7 @@ export function TextField({
   required = true,
   min,
   max,
+  step,
   placeholder,
 }: {
   label: string;
@@ -56,6 +57,7 @@ export function TextField({
   required?: boolean;
   min?: number;
   max?: number;
+  step?: number;
   placeholder?: string;
 }) {
   const uid = useId();
@@ -70,6 +72,7 @@ export function TextField({
         required={required}
         min={min}
         max={max}
+        step={step}
         placeholder={placeholder}
       />
     </Field>
