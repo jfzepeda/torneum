@@ -1,5 +1,8 @@
+import type { RegistrationSchema } from "@/components/registration-fields";
 export type Actor = {
   id: string;
+  organization_id?: string;
+  organization_slug?: string;
   name: string;
   role:
     | "admin"
@@ -11,8 +14,12 @@ export type Actor = {
   team_id?: string;
 };
 export type Category = {
-  price_cents: number; payment_mode: string; participant_count: number;
-  registration_starts_at?: string | null; registration_ends_at?: string | null; payment_policy: string;
+  price_cents: number;
+  payment_mode: string;
+  participant_count: number;
+  registration_starts_at?: string | null;
+  registration_ends_at?: string | null;
+  payment_policy: string;
   id: string;
   name: string;
   capacity: number;
@@ -30,10 +37,13 @@ export type Category = {
   };
 };
 export type Team = {
-  image_id?:string; notifications?:boolean;
+  image_id?: string;
+  notifications?: boolean;
   id: string;
   name: string;
-  players: { name: string }[];
+  players: { name: string; email?: string; phone?: string; answers?: Record<string, unknown> }[];
+  extra_answers?: Record<string, unknown>;
+  registration_source?: string;
   category_id: string;
   status: string;
   email?: string;
@@ -115,6 +125,7 @@ export type State = {
     timezone: string;
     auto_approve: boolean;
     registration_open: boolean;
+    registration_schema?: RegistrationSchema;
     status: string;
   } | null;
   categories: Category[];

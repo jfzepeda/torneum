@@ -46,7 +46,7 @@ export async function getState(db: Db, who: Actor | string, archiveId?:string) {
     db.query(
       internal
         ? "SELECT * FROM teams WHERE tournament_id=$1 ORDER BY created_at DESC"
-        : "SELECT id,name,category_id,players,description,status,image_id FROM teams WHERE tournament_id=$1 AND status='approved' ORDER BY name",
+        : "SELECT id,name,category_id,(SELECT jsonb_agg(jsonb_build_object('name',p->>'name')) FROM jsonb_array_elements(players) p) players,description,status,image_id FROM teams WHERE tournament_id=$1 AND status='approved' ORDER BY name",
       [t.id],
     ),
     db.query(

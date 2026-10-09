@@ -20,6 +20,7 @@
     "@fastify/helmet": "latest",
     "@fastify/rate-limit": "latest",
     "@fastify/swagger": "latest",
+    "csv-parse": "^7.0.3",
     "fastify": "latest",
     "nodemailer": "latest",
     "pg": "latest",

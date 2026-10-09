@@ -1,6 +1,11 @@
 "use client";
-import { ParticipantPayment, money, type RegistrationPayment } from "./payments";
-import {TeamProfile} from "./profile";
+import { RegistrationFields, registrationFromForm, defaultSchema } from "./registration-fields";
+import {
+  ParticipantPayment,
+  money,
+  type RegistrationPayment,
+} from "./payments";
+import { TeamProfile } from "./profile";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
@@ -282,7 +287,11 @@ export function Portal({ slug }: { slug: string }) {
             </div>
           </TabsContent>
           <TabsContent value="assistant">
-            <ChatPanel agent="public" slug={slug} enabled={state.integrations.chatkit} />
+            <ChatPanel
+              agent="public"
+              slug={slug}
+              enabled={state.integrations.chatkit}
+            />
           </TabsContent>
         </Tabs>
         <SponsorStrip state={state} zone={zone} />
@@ -338,12 +347,14 @@ function SponsorStrip({ state, zone }: { state: State; zone: string }) {
 export function Registration({ slug }: { slug: string }) {
   const { state, error } = usePublic(slug);
   const [category, setCategory] = useState(""),
-    [captain, setCaptain] = useState("0"),
+    [reviewPending, setReviewPending] = useState(false),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState(""),
     [done, setDone] = useState(false),
     [devLink, setDevLink] = useState("");
-  const selected = state?.categories.find(c=>c.id === (category || state.categories[0]?.id));
+  const selected = state?.categories.find(
+    (c) => c.id === (category || state.categories.find(c => !c.draw_published)?.id),
+  );
   return (
     <PublicShell slug={slug} orgName={state?.organization?.name}>
       <main className="registration-page">
@@ -354,7 +365,8 @@ export function Registration({ slug }: { slug: string }) {
         <div className="eyebrow">EL PRIMER PASO HACIA LA CANCHA</div>
         <h1>Registra tu participación.</h1>
         <p>
-          Una persona registra a los participantes. Verifica el correo para continuar al pago.
+          Una persona registra a los participantes. Verifica el correo para
+          continuar al pago.
         </p>
         {error && (
           <Alert variant="destructive">
@@ -364,10 +376,9 @@ export function Registration({ slug }: { slug: string }) {
         {done ? (
           <section className="panel registration-success">
             <CheckCircle2 size={38} />
-            <h2>Un paso más y están dentro.</h2>
+            <h2>{reviewPending ? "Solicitud recibida." : "Un paso más y están dentro."}</h2>
             <p>
-              Verifica el correo del capitán con el enlace enviado. Después
-              podrás gestionar la inscripción y completar el pago si tiene costo.
+              {reviewPending ? "El organizador revisará la solicitud antes de completar el alta." : "Verifica el correo del capitán con el enlace enviado. Después podrás gestionar la inscripción y completar el pago si tiene costo."}
             </p>
             {devLink && (
               <Alert>
@@ -397,13 +408,9 @@ export function Registration({ slug }: { slug: string }) {
               try {
                 const r = await mutate("/v1/registrations", {
                   slug,
-                  name: formValue(d, "name"),
-                  players: Array.from({length:selected?.participant_count || 2},(_,i)=>({name:formValue(d,`player${i+1}`)})),
-                  captain: Math.min(Number(captain),(selected?.participant_count || 2)-1),
-                  email: formValue(d, "email"),
-                  phone: formValue(d, "phone"),
-                  category_id: category || state?.categories[0]?.id,
+                  ...registrationFromForm(d, state?.tournament?.registration_schema || defaultSchema, state?.categories || []),
                 });
+                setReviewPending(Boolean(r.review_pending));
                 setDevLink((r.development_link as string) || "");
                 setDone(true);
               } catch (e) {
@@ -414,39 +421,8 @@ export function Registration({ slug }: { slug: string }) {
             }}
           >
             <FieldGroup>
-              <TextField
-                name="name"
-                label="Nombre de la inscripción"
-                placeholder="Apellido / Apellido"
-              />
-              <FieldGroup className="grid sm:grid-cols-2 gap-5">
-                {Array.from({length:selected?.participant_count || 2},(_,i)=><TextField key={i} name={`player${i+1}`} label={`Participante ${i+1} · nombre completo`}/>)}
-              </FieldGroup>
-              <Choice
-                label="Responsable de la inscripción"
-                value={captain}
-                onChange={setCaptain}
-                options={Array.from({length:selected?.participant_count || 2},(_,i)=>({value:String(i),label:`Participante ${i+1}`}))}
-              />
-              <Choice
-                label="Categoría"
-                value={category || state?.categories[0]?.id || ""}
-                onChange={setCategory}
-                options={
-                  state?.categories
-                    .filter((c) => !c.draw_published)
-                    .map((c) => ({ value: c.id, label: c.name })) || []
-                }
-              />
-              <p>{money(selected?.price_cents || 0)} MXN · {selected?.payment_mode === "free" ? "Inscripción gratuita" : selected?.payment_mode === "external" ? "Pago externo con el organizador" : "Pago con tarjeta en Stripe"}</p>
-              <p>{selected?.payment_policy}</p>
-              <TextField name="email" label="Correo del capitán" type="email" />
-              <TextField
-                name="phone"
-                label="Teléfono del capitán (opcional)"
-                type="tel"
-                required={false}
-              />
+              {state && <RegistrationFields schema={state?.tournament?.registration_schema || defaultSchema} categories={state.categories.filter(c => !c.draw_published)} onCategoryChange={setCategory}/> }
+              <p>{money(selected?.price_cents || 0)} MXN · {selected?.payment_policy}</p>
               <Alert>
                 <AlertDescription>
                   La inscripción incluye los datos de los participantes. El
@@ -456,8 +432,9 @@ export function Registration({ slug }: { slug: string }) {
               </Alert>
               <label className="consent">
                 <input type="checkbox" required />
-                Acepto las políticas del organizador y confirmo que los participantes autorizan el registro y la
-                publicación de sus nombres y resultados.
+                Acepto las políticas del organizador y confirmo que los
+                participantes autorizan el registro y la publicación de sus
+                nombres y resultados.
               </label>
               {message && (
                 <Alert variant="destructive">
@@ -502,9 +479,10 @@ export function Verification({ slug }: { slug: string }) {
 }
 export function MyTeam({ slug }: { slug: string }) {
   const { state, refresh } = usePublic(slug);
-  const [registrationPayment,setRegistrationPayment] = useState<RegistrationPayment | null>(null);
+  const [registrationPayment, setRegistrationPayment] =
+    useState<RegistrationPayment | null>(null);
   const [team, setTeam] = useState<Team | null>(null),
-    [ownMatches,setOwnMatches]=useState<Match[]>([]),
+    [ownMatches, setOwnMatches] = useState<Match[]>([]),
     [requests, setRequests] = useState<
       { id: string; reason: string; status: string }[]
     >([]),
@@ -516,14 +494,25 @@ export function MyTeam({ slug }: { slug: string }) {
     [result, setResult] = useState<Match | null>(null);
   const load = useCallback(async () => {
     try {
-      const r = await get<{ team: Team; requests: typeof requests; matches:Match[]; registration: RegistrationPayment | null }>(
-        "/v1/my-team",
-      );
-      setTeam(r.team);setOwnMatches(r.matches);setRegistrationPayment(r.registration);
+      const r = await get<{
+        team: Team;
+        requests: typeof requests;
+        matches: Match[];
+        registration: RegistrationPayment | null;
+      }>("/v1/my-team");
+      setTeam(r.team);
+      setOwnMatches(r.matches);
+      setRegistrationPayment(r.registration);
       setRequests(r.requests);
       setError("");
     } catch (e) {
-      setError((e as Error).message);
+      const msg = (e as Error).message;
+      if (
+        msg !== "Inicia sesión como capitán." &&
+        msg !== "No se pudo cargar la información."
+      ) {
+        setError(msg);
+      }
     }
   }, []);
   useEffect(() => {
@@ -599,35 +588,40 @@ export function MyTeam({ slug }: { slug: string }) {
               </div>
               <Status value={team.status} />
             </section>
-            {registrationPayment && <ParticipantPayment registration={registrationPayment} refresh={load}/>}
+            {registrationPayment && (
+              <ParticipantPayment
+                registration={registrationPayment}
+                refresh={load}
+              />
+            )}
             <h2 className="section-title">Tus partidos</h2>
             <div className="public-matches">
-              {ownMatches
-                .map((m) => (
-                  <section className="panel public-match" key={m.id}>
-                    <Status value={m.status} />
-                    <h3>
-                      {state?.teams.find(
-                        (t) =>
-                          t.id ===
-                          (m.home_id === team.id ? m.away_id : m.home_id),
-                      )?.name || "Rival por definir"}
-                    </h3>
-                    <p>
-                      {m.starts_at
-                        ? `${date(m.starts_at)} · ${time(m.starts_at)}`
-                        : "Horario por anunciar"}
-                    </p>
-                    <p>{m.score?.sets.map((s) => s.join("–")).join("  ")}</p>
-                    {!["finished", "disputed"].includes(m.status) && (
-                      <Button variant="outline" onClick={() => setResult(m)}>
-                        Reportar / confirmar resultado
-                      </Button>
-                    )}
-                  </section>
-                ))}
+              {ownMatches.map((m) => (
+                <section className="panel public-match" key={m.id}>
+                  <Status value={m.status} />
+                  <h3>
+                    {state?.teams.find(
+                      (t) =>
+                        t.id ===
+                        (m.home_id === team.id ? m.away_id : m.home_id),
+                    )?.name || "Rival por definir"}
+                  </h3>
+                  <p>
+                    {m.starts_at
+                      ? `${date(m.starts_at)} · ${time(m.starts_at)}`
+                      : "Horario por anunciar"}
+                  </p>
+                  <p>{m.score?.sets.map((s) => s.join("–")).join("  ")}</p>
+                  {!["finished", "disputed"].includes(m.status) && (
+                    <Button variant="outline" onClick={() => setResult(m)}>
+                      Reportar / confirmar resultado
+                    </Button>
+                  )}
+                </section>
+              ))}
             </div>
-            <TeamProfile team={team} action={action}/><h2 className="section-title">Solicitar un cambio</h2>
+            <TeamProfile team={team} action={action} />
+            <h2 className="section-title">Solicitar un cambio</h2>
             <form
               className="panel registration-form"
               onSubmit={async (e) => {

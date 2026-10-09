@@ -115,7 +115,7 @@ const register = (o = A) =>
     slug: o.slug,
     category_id: o.category,
     name: "Pair",
-    players: [{ name: "One" }, { name: "Two" }],
+    players: [{ name: randomUUID() }, { name: randomUUID() }],
     captain: 0,
     email: `${randomUUID()}@example.invalid`,
   });

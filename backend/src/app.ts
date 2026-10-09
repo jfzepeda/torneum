@@ -42,7 +42,9 @@ import { prospectScore, standings, resultsHash } from "./padel.js";
 import {researchSponsors} from "./research.js";
 import { registerRealtime } from "./realtime.js";
 import { registerPaymentRoutes } from "./payment-routes.js";
-import { registerPayment } from "./payments.js";
+import { registrationInput } from "./registration-fields.js";
+import { submitNative } from "./registrations.js";
+import { registerGoogleRoutes } from "./google/routes.js";
 import { registerPlatform } from "./platform.js";
 const id = z.string().uuid(),
   slug = z.string().trim().toLowerCase().min(1).max(60),
@@ -299,91 +301,11 @@ export async function buildApp() {
   });
   post(
     "/v1/registrations",
-    z.object({
-      slug,
-      category_id: id,
-      name: short,
-      players: z.array(z.object({ name: short })).min(1).max(100),
-      captain: z.number().int().min(0).max(99),
-      email,
-      phone: z.string().max(30).default(""),
-    }),
+    registrationInput.extend({ slug }),
     null,
     async (b, _a, db) => {
       const org = await resolveOrg(db, b.slug);
-      const c = (
-        await db.query(
-          "SELECT c.*,t.registration_open FROM categories c JOIN tournaments t ON t.id=c.tournament_id WHERE c.id=$1 AND c.organization_id=$2 AND t.status<>'archived' FOR UPDATE OF c",
-          [b.category_id, org.id],
-        )
-      ).rows[0];
-      ensure(
-        c && c.registration_open && !c.draw_published,
-        "Inscripciones cerradas.",
-      );
-      ensure(
-        b.players.length === c.participant_count && b.captain < b.players.length && new Set(b.players.map(p => p.name.toLowerCase())).size === b.players.length,
-        "Revisa el número de participantes y sus nombres distintos.",
-        400,
-      );
-      ensure((!c.registration_starts_at || new Date(c.registration_starts_at).getTime() <= Date.now()) && (!c.registration_ends_at || new Date(c.registration_ends_at).getTime() > Date.now()), "Inscripciones fuera de plazo.");
-      if (c.payment_mode === 'stripe') {
-        const account = (await db.query('SELECT 1 FROM tenant_payment_accounts WHERE organization_id=$1 AND connected AND charges_enabled', [org.id])).rowCount;
-        ensure(account, "El organizador todavía no está habilitado para cobrar.");
-      }
-      const count = (
-        await db.query(
-          "SELECT count(*) FROM teams WHERE category_id=$1 AND status NOT IN ('rejected','withdrawn')",
-          [c.id],
-        )
-      ).rows[0];
-      ensure(Number(count.count) < c.capacity, "La categoría no tiene cupos.");
-      ensure(
-        process.env.SMTP_URL ||
-          (process.env.DEV_MAILBOX === "true" &&
-            process.env.NODE_ENV !== "production"),
-        "El servicio de verificación no está configurado.",
-        503,
-      );
-      const team = (
-        await db.query(
-          "INSERT INTO teams(organization_id,tournament_id,category_id,name,players,captain,email,phone) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id",
-          [
-            c.organization_id,
-            c.tournament_id,
-            c.id,
-            b.name,
-            JSON.stringify(b.players),
-            b.captain,
-            b.email,
-            b.phone,
-          ],
-        )
-      ).rows[0];
-      const registration = await registerPayment(db, c, team.id);
-      const token = newToken();
-      await db.query(
-        "INSERT INTO verification_tokens VALUES($1,$2,$3,now()+interval '30 minutes',NULL)",
-        [hashToken(token), c.organization_id, team.id],
-      );
-      const url = front() + "/" + org.slug + "/verificar#" + token;
-      let development_link: string | undefined;
-      if (
-        process.env.DEV_MAILBOX === "true" &&
-        process.env.NODE_ENV !== "production"
-      )
-        development_link = url;
-      else await sendVerification(b.email, url);
-      await audit(
-        db,
-        c.organization_id,
-        team.id,
-        "registration.create",
-        team.id,
-        null,
-        { status: "verification" },
-      );
-      return { ok: true, development_link, registration_id: registration.id };
+      return submitNative(db, org.id, b, 'public');
     },
   );
   post(
@@ -1036,6 +958,7 @@ export async function buildApp() {
   registerAgentActions(post,actionRegistry);
   registerRealtime(app);
   registerPlatform(app);
+  registerGoogleRoutes(app);
   await registerPaymentRoutes(app);
   return app;
 }

@@ -1,3 +1,5 @@
+import { syncDueIntegrations } from "./google/sync.js";
+import { sendVerificationOutbox } from "./registrations.js";
 import { reconcilePayments, sendRegistrationNotifications } from "./payments.js";
 import { buildApp } from "./app.js";
 import { pool } from "./db.js";
@@ -15,13 +17,16 @@ const worker =
         15000,
       )
     : undefined;
+const googleWorker = setInterval(() => { void syncDueIntegrations().catch(error => app.log.error(error)); }, 30000);
 const paymentsWorker = setInterval(() => {
+  void sendVerificationOutbox().catch(error => app.log.error(error));
   void reconcilePayments().catch(error => app.log.error(error));
   void sendRegistrationNotifications().catch(error => app.log.error(error));
 }, 15000);
 for (const signal of ["SIGINT", "SIGTERM"])
   process.on(signal, async () => {
     clearInterval(paymentsWorker);
+    clearInterval(googleWorker);
     if (worker) clearInterval(worker);
     await app.close();
     await pool.end();

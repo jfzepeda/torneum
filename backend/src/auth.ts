@@ -16,6 +16,7 @@ export type Role =
 export type Actor = {
   id: string;
   organization_id: string;
+  organization_slug?: string;
   role: Role;
   name: string;
   team_id?: string;
@@ -61,7 +62,7 @@ export async function getActor(
   const token = req.cookies.torneum_session;
   if (!token) return;
   const { rows } = await pool.query(
-    `SELECT s.organization_id,s.user_id,s.team_id,u.name,u.role,t.name team_name FROM sessions s JOIN organizations o ON o.id=s.organization_id AND o.active LEFT JOIN users u ON u.id=s.user_id AND u.active=true AND u.organization_id=s.organization_id LEFT JOIN teams t ON t.id=s.team_id AND t.organization_id=s.organization_id WHERE token_hash=$1 AND expires_at>now()`,
+    `SELECT s.organization_id,o.slug organization_slug,s.user_id,s.team_id,u.name,u.role,t.name team_name FROM sessions s JOIN organizations o ON o.id=s.organization_id AND o.active LEFT JOIN users u ON u.id=s.user_id AND u.active=true AND u.organization_id=s.organization_id LEFT JOIN teams t ON t.id=s.team_id AND t.organization_id=s.organization_id WHERE token_hash=$1 AND expires_at>now()`,
     [hashToken(token)],
   );
   const s = rows[0];
@@ -69,6 +70,7 @@ export async function getActor(
   return {
     id: s.user_id || s.team_id,
     organization_id: s.organization_id,
+    organization_slug: s.organization_slug,
     role: s.role || "participant",
     name: s.name || s.team_name,
     team_id: s.team_id || undefined,

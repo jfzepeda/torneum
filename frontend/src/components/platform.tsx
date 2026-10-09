@@ -182,7 +182,7 @@ export function Platform() {
         </Table>
       </section>
       <h2>Nuevo club</h2>
-      <section className="panel">
+      <section className="panel p-6">
         <form
           onSubmit={async (e) => {
             e.preventDefault();

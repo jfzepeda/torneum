@@ -75,6 +75,7 @@ import { Operations } from "./operations";
 import { CalendarView } from "./calendar";
 import { Sponsors } from "./sponsors";
 import { Administration } from "./administration";
+const GoogleRegistrations = dynamic(() => import("./google-registrations").then(m => m.GoogleRegistrations));
 const ChatPanel = dynamic(
   () => import("./chat-panel").then((m) => m.ChatPanel),
   { ssr: false },
@@ -90,6 +91,7 @@ const nav = [
     items: [
       ["inicio", "Inicio", LayoutDashboard],
       ["inscripciones", "Inscripciones", Inbox],
+      ["google", "Importar y revisar", Inbox],
       ["categorias", "Categorías", Layers],
       ["equipos", "Equipos y jugadores", Users],
       ["grupos", "Grupos y sorteo", Shuffle],
@@ -120,13 +122,31 @@ export function Dashboard({ slug }: { slug: string }) {
     [search, setSearch] = useState("");
   const refresh = useCallback(async () => {
     try {
-      const [session, response] = await Promise.all([
-        get<{ actor: Actor | null }>("/v1/session"),
-        client.GET("/v1/state"),
-      ]);
+      const session = await get<{ actor: Actor | null }>("/v1/session");
+      const currentActor = session.actor;
+
+      if (
+        currentActor &&
+        currentActor.organization_slug &&
+        currentActor.organization_slug !== slug
+      ) {
+        setActor(null);
+        setState(null);
+        setError("");
+        return;
+      }
+
+      setActor(currentActor);
+
+      if (!currentActor || currentActor.role === "participant") {
+        setState(null);
+        setError("");
+        return;
+      }
+
+      const response = await client.GET("/v1/state");
       if (response.error || !response.data)
         throw new Error("No se pudo cargar el torneo.");
-      setActor(session.actor);
       setState(response.data as unknown as State);
       setError("");
     } catch (e) {
@@ -134,7 +154,7 @@ export function Dashboard({ slug }: { slug: string }) {
     } finally {
       setLoaded(true);
     }
-  }, []);
+  }, [slug]);
   useEffect(() => {
     void refresh();
     const desired = new URLSearchParams(location.search).get("view");
@@ -148,7 +168,7 @@ export function Dashboard({ slug }: { slug: string }) {
       events.close();
       clearInterval(interval);
     };
-  }, [refresh]);
+  }, [refresh, slug]);
   const go = (target: string) => {
     setView(target);
     setSearch("");
@@ -186,19 +206,28 @@ export function Dashboard({ slug }: { slug: string }) {
         participant={actor?.role === "participant"}
       />
     );
-  if (!state?.tournament)
+  if (!state?.tournament) {
+    if (actor.role === "admin") {
+      return (
+        <InitializeTournament
+          action={action}
+          orgName={state?.organization?.name || ""}
+        />
+      );
+    }
     return (
       <main className="loading-page">
         <Alert>
-          <AlertTitle>No hay un torneo disponible</AlertTitle>
+          <AlertTitle>No hay un torneo activo</AlertTitle>
           <AlertDescription>
             {error ||
-              "Inicializa la organización desde la configuración del servidor."}
+              "El administrador del club aún no ha configurado ningún torneo activo."}
           </AlertDescription>
         </Alert>
         <Button onClick={refresh}>Reintentar</Button>
       </main>
     );
+  }
   const pending = state.teams.filter((t) => t.status === "pending").length;
   const selected = nav.flatMap((g) => [...g.items]).find((i) => i[0] === view);
   const title = selected?.[1] || "Inicio";
@@ -352,6 +381,8 @@ export function Dashboard({ slug }: { slug: string }) {
               "solicitudes",
             ].includes(view) ? (
             <Operations {...props} view={view} />
+          ) : view === "google" ? (
+            <GoogleRegistrations {...props} />
           ) : view === "calendario" ? (
             <CalendarView {...props} />
           ) : view === "patrocinadores" ? (
@@ -375,7 +406,11 @@ export function Dashboard({ slug }: { slug: string }) {
             </SheetDescription>
           </SheetHeader>
           <div className="p-5">
-            <ChatPanel agent="admin" slug={slug} enabled={state.integrations.chatkit} />
+            <ChatPanel
+              agent="admin"
+              slug={slug}
+              enabled={state.integrations.chatkit}
+            />
           </div>
         </SheetContent>
       </Sheet>
@@ -398,6 +433,78 @@ const descriptions: Record<string, string> = {
   configuracion: "Los detalles que definen tu torneo.",
   archivo: "La historia de tus torneos, en un solo lugar.",
 };
+function InitializeTournament({
+  action,
+  orgName,
+}: {
+  action: Action;
+  orgName: string;
+}) {
+  const [busy, setBusy] = useState(false);
+  const now = new Date();
+  const defStarts = new Date(now.getTime() + 14 * 86400000)
+    .toISOString()
+    .slice(0, 10);
+  const defEnds = new Date(now.getTime() + 16 * 86400000)
+    .toISOString()
+    .slice(0, 10);
+
+  return (
+    <main className="loading-page" style={{ maxWidth: 540 }}>
+      <div className="eyebrow">CONFIGURACIÓN INICIAL</div>
+      <h2>Bienvenido a Torneum</h2>
+      <p>
+        {orgName ? `Club: ${orgName}. ` : ""}Crea tu primer torneo para comenzar
+        a gestionar categorías, inscripciones y partidos.
+      </p>
+      <form
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setBusy(true);
+          const d = new FormData(e.currentTarget);
+          try {
+            await action("/v1/tournaments/new", {
+              name: formValue(d, "name"),
+              venue: formValue(d, "venue"),
+              starts_on: formValue(d, "starts_on"),
+              ends_on: formValue(d, "ends_on"),
+            });
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <FieldGroup>
+          <TextField
+            label="Nombre del torneo"
+            name="name"
+            defaultValue="Torneo Inaugural"
+          />
+          <TextField
+            label="Sede / Club"
+            name="venue"
+            defaultValue={orgName || "Club Deportivo"}
+          />
+          <div className="grid grid-cols-2 gap-3">
+            <TextField
+              label="Fecha de inicio"
+              name="starts_on"
+              type="date"
+              defaultValue={defStarts}
+            />
+            <TextField
+              label="Fecha de fin"
+              name="ends_on"
+              type="date"
+              defaultValue={defEnds}
+            />
+          </div>
+          <Submit busy={busy} label="Crear primer torneo" />
+        </FieldGroup>
+      </form>
+    </main>
+  );
+}
 function Login({
   slug,
   onLogin,
@@ -459,6 +566,7 @@ function Login({
           onSubmit={async (e) => {
             e.preventDefault();
             setBusy(true);
+            setMessage("");
             const d = new FormData(e.currentTarget);
             try {
               await mutate("/v1/login", {

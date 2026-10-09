@@ -1,7 +1,7 @@
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import nodemailer from "nodemailer";
 import { pool, transaction, ensure, audit } from "./db.js";
-export async function sendVerification(email: string, url: string) {
+export async function sendVerification(email: string, url: string, messageId?: string) {
   ensure(
     process.env.SMTP_URL && process.env.MAIL_FROM,
     "El correo de verificación no está configurado.",
@@ -13,6 +13,7 @@ export async function sendVerification(email: string, url: string) {
       from: process.env.MAIL_FROM,
       to: email,
       subject: "Verifica tu inscripción · Torneum",
+      messageId,
       text: `Confirma tu correo y gestiona tu pareja: ${url}\nEste enlace caduca en 30 minutos y solo puede usarse una vez.`,
     });
 }
