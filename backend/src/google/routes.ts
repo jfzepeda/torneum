@@ -535,6 +535,72 @@ export function registerGoogleRoutes(app: FastifyInstance) {
         return result;
       }),
   );
+  post(
+    "/v1/registration-inbox/bulk-update",
+    z.object({
+      tournament_id: id,
+      items: z
+        .array(
+          z.object({
+            id,
+            version: z.number().int().positive(),
+            name: z.string().trim().min(1).max(150).optional(),
+            category_id: id.optional(),
+            email: z.email().max(254).optional(),
+            players: registrationInput.shape.players.optional(),
+          }),
+        )
+        .min(1)
+        .max(500),
+    }),
+    "registrations",
+    async (b, a) =>
+      transaction(async (db) => {
+        await lockTournament(db, a.organization_id, b.tournament_id);
+        const categories = new Set(
+          (
+            await db.query(
+              "SELECT id FROM categories WHERE tournament_id=$1 AND organization_id=$2",
+              [b.tournament_id, a.organization_id],
+            )
+          ).rows.map((c) => c.id),
+        );
+        let updated = 0;
+        for (const item of b.items) {
+          ensure(
+            !item.category_id || categories.has(item.category_id),
+            "Categoría no encontrada.",
+            404,
+          );
+          const r = await db.query(
+            "UPDATE registration_inbox SET normalized=normalized || $5::jsonb,version=version+1,updated_at=now() WHERE id=$1 AND organization_id=$2 AND tournament_id=$3 AND version=$4 AND status='pending' RETURNING id",
+            [
+              item.id,
+              a.organization_id,
+              b.tournament_id,
+              item.version,
+              JSON.stringify({
+                ...(item.name && { name: item.name }),
+                ...(item.category_id && { category_id: item.category_id }),
+                ...(item.email && { email: item.email }),
+                ...(item.players && { players: item.players }),
+              }),
+            ],
+          );
+          updated += r.rowCount ?? 0;
+        }
+        await audit(
+          db,
+          a.organization_id,
+          a.id,
+          "registration.bulk_update",
+          b.tournament_id,
+          null,
+          { requested: b.items.length, updated },
+        );
+        return { updated, skipped: b.items.length - updated };
+      }),
+  );
   app.get("/v1/integrations/google/oauth/start", async (req, reply) => {
     const a = requirePermission(await getActor(req), "admin");
     if (!oauthAvailable(reply)) return;

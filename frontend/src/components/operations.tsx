@@ -74,6 +74,17 @@ export function Operations({
         .toLowerCase()
         .includes(search.toLowerCase()),
   );
+  const toVerify = state.teams.filter((t) => t.status === "verification");
+  const bulkVerify = async (path: string, message: string) => {
+    if (!window.confirm(message)) return;
+    setBusy(true);
+    try {
+      await action(path, {});
+    } catch {
+    } finally {
+      setBusy(false);
+    }
+  };
   const name = (id: string | null) =>
     state.teams.find((t) => t.id === id)?.name || "Por definir";
   const createCategory = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -154,6 +165,33 @@ export function Operations({
             <Plus data-icon="inline-start" />
             Inscribir pareja
           </Button>
+        ) : view === "equipos" && can("registration") ? (
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              disabled={busy || !toVerify.length}
+              onClick={() =>
+                bulkVerify(
+                  "/v1/registrations/resend-verification",
+                  `¿Reenviar el correo de verificación a ${toVerify.length} pareja(s)?`,
+                )
+              }
+            >
+              Reenviar verificación
+            </Button>
+            <Button
+              disabled={busy || !toVerify.length}
+              onClick={() =>
+                bulkVerify(
+                  "/v1/registrations/verify-all",
+                  `¿Marcar como verificado el correo de ${toVerify.length} pareja(s) sin que el capitán lo confirme?`,
+                )
+              }
+            >
+              <Check data-icon="inline-start" />
+              Verificar todos
+            </Button>
+          </div>
         ) : null}
       </div>
       {["inscripciones", "equipos"].includes(view) && (

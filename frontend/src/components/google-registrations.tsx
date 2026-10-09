@@ -6,6 +6,12 @@ import type { ViewProps } from "./dashboard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import {
@@ -82,6 +88,41 @@ type Inbox = {
     data: RegistrationData;
   }[];
 };
+function BulkGroup({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="text-xs font-medium text-muted-foreground">{label}</span>
+      <div className="flex items-center gap-2">{children}</div>
+    </div>
+  );
+}
+// span wrapper so the tooltip also shows on disabled buttons
+function Tip({ text, children }: { text: string; children: React.ReactNode }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger render={<span className="inline-flex" />}>
+        {children}
+      </TooltipTrigger>
+      <TooltipContent>{text}</TooltipContent>
+    </Tooltip>
+  );
+}
+const firstWord = (n: string) => n.trim().split(/\s+/)[0] || "";
+const NAME_MODES: Record<string, (d: RegistrationData) => string> = {
+  captain_full: (d) =>
+    (d.players?.[d.captain] || d.players?.[0])?.name.trim() || "",
+  first_names: (d) =>
+    (d.players || [])
+      .map((p) => firstWord(p.name))
+      .filter(Boolean)
+      .join("-"),
+};
 export function GoogleRegistrations({ state, actor, action }: ViewProps) {
   const tournament = state.tournament!;
   const admin = actor.role === "admin";
@@ -97,6 +138,9 @@ export function GoogleRegistrations({ state, actor, action }: ViewProps) {
     [status, setStatus] = useState("pending"),
     [offset, setOffset] = useState(0),
     [next, setNext] = useState<number | null>(null);
+  const [checked, setChecked] = useState<string[]>([]),
+    [bulkCategory, setBulkCategory] = useState(""),
+    [quick, setQuick] = useState<Inbox | null>(null);
   const [caps, setCaps] = useState<{
     googleOAuth: { available: boolean };
     connection: string;
@@ -240,6 +284,35 @@ export function GoogleRegistrations({ state, actor, action }: ViewProps) {
       ...extra,
     });
   }
+  async function bulkUpdate(
+    rows: Inbox[],
+    patch: (
+      d: RegistrationData,
+      id: string,
+    ) => Partial<
+      Pick<RegistrationData, "name" | "category_id" | "email" | "players">
+    >,
+    label: string,
+  ) {
+    const changes = rows.flatMap((i) => {
+      const p = patch(i.normalized, i.id);
+      const changed = Object.entries(p).some(
+        ([k, v]) =>
+          v &&
+          JSON.stringify(v) !==
+            JSON.stringify(i.normalized[k as keyof RegistrationData]),
+      );
+      return changed ? [{ id: i.id, version: i.version, ...p }] : [];
+    });
+    if (!changes.length) return toast.info("Nada que cambiar.");
+    const r = await mutate("/v1/registration-inbox/bulk-update", {
+      tournament_id: tournament.id,
+      items: changes,
+    });
+    toast.success(`${label}: ${r.updated} actualizadas, ${r.skipped} omitidas`);
+    setChecked([]);
+  }
+  const checkedRows = items.filter((i) => checked.includes(i.id));
   const selectionFormId = "review-registration";
   if (!["admin", "registration"].includes(actor.role))
     return (
@@ -344,13 +417,143 @@ export function GoogleRegistrations({ state, actor, action }: ViewProps) {
               </Button>
             )}
           </div>
+          <FieldLabel htmlFor="status">Ediciones en masa</FieldLabel>
+          {status === "pending" && items.length > 0 && (
+            <TooltipProvider>
+              <div className="flex flex-wrap items-end gap-x-6 gap-y-3 rounded-lg border p-3">
+                <BulkGroup label="Selección">
+                  <Badge variant="outline">
+                    {checked.length} de {items.length}
+                  </Badge>
+                  <Tip text="Marca o desmarca todas las respuestas de esta página.">
+                    <Button
+                      variant="outline"
+                      disabled={busy}
+                      onClick={() =>
+                        setChecked(
+                          checked.length === items.length
+                            ? []
+                            : items.map((i) => i.id),
+                        )
+                      }
+                    >
+                      {checked.length === items.length
+                        ? "Limpiar selección"
+                        : "Seleccionar todas"}
+                    </Button>
+                  </Tip>
+                </BulkGroup>
+                <BulkGroup label="Nombre del equipo">
+                  <Tip text="Usa el nombre completo del capitán. Ej.: Juan Pérez López.">
+                    <Button
+                      variant="outline"
+                      disabled={busy || !checked.length}
+                      onClick={() =>
+                        run(() =>
+                          bulkUpdate(
+                            checkedRows,
+                            (d) => ({ name: NAME_MODES.captain_full(d) }),
+                            "Nombres",
+                          ),
+                        )
+                      }
+                    >
+                      Capitán
+                    </Button>
+                  </Tip>
+                  <Tip text="Une la primera palabra del nombre de cada jugador. Ej.: Juan-Carlos.">
+                    <Button
+                      variant="outline"
+                      disabled={busy || !checked.length}
+                      onClick={() =>
+                        run(() =>
+                          bulkUpdate(
+                            checkedRows,
+                            (d) => ({ name: NAME_MODES.first_names(d) }),
+                            "Nombres",
+                          ),
+                        )
+                      }
+                    >
+                      Nombres cortos
+                    </Button>
+                  </Tip>
+                </BulkGroup>
+                <BulkGroup label="Correo">
+                  <Tip text="Rellena solo los correos vacíos con uno genérico único (@sin-correo.example.com). No recibe mensajes.">
+                    <Button
+                      variant="outline"
+                      disabled={busy || !checked.length}
+                      onClick={() =>
+                        run(() =>
+                          bulkUpdate(
+                            checkedRows,
+                            (d, id) => {
+                              const generic = (key: string) =>
+                                `${key}-${id.slice(0, 8)}@sin-correo.example.com`;
+                              return {
+                                email: d.email ? undefined : generic("equipo"),
+                                players: d.players.map((p, n) => ({
+                                  ...p,
+                                  email:
+                                    p.email ||
+                                    (schema.email_mode === "participant"
+                                      ? generic(`jugador${n + 1}`)
+                                      : ""),
+                                })),
+                              };
+                            },
+                            "Correos",
+                          ),
+                        )
+                      }
+                    >
+                      Genéricos
+                    </Button>
+                  </Tip>
+                </BulkGroup>
+                <BulkGroup label="Categoría">
+                  <Choice
+                    value={bulkCategory}
+                    onChange={setBulkCategory}
+                    options={[
+                      { value: "", label: "Elegir…" },
+                      ...state.categories.map((c) => ({
+                        value: c.id,
+                        label: c.name,
+                      })),
+                    ]}
+                  />
+                  <Tip text="Mueve las respuestas seleccionadas a la categoría elegida.">
+                    <Button
+                      variant="outline"
+                      disabled={busy || !checked.length || !bulkCategory}
+                      onClick={() =>
+                        run(() =>
+                          bulkUpdate(
+                            checkedRows,
+                            () => ({ category_id: bulkCategory }),
+                            "Categoría",
+                          ),
+                        )
+                      }
+                    >
+                      Mover
+                    </Button>
+                  </Tip>
+                </BulkGroup>
+              </div>
+            </TooltipProvider>
+          )}
           {!items.length ? (
             <EmptyState title="No hay respuestas en este estado" />
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead />
                   <TableHead>Equipo</TableHead>
+                  <TableHead>Categoría</TableHead>
                   <TableHead>Fuente</TableHead>
                   <TableHead>Revisión</TableHead>
                   <TableHead>Acción</TableHead>
@@ -360,12 +563,32 @@ export function GoogleRegistrations({ state, actor, action }: ViewProps) {
                 {items.map((item) => (
                   <TableRow key={item.id}>
                     <TableCell>
+                      <input
+                        type="checkbox"
+                        aria-label="Seleccionar"
+                        disabled={status !== "pending"}
+                        checked={checked.includes(item.id)}
+                        onChange={(e) =>
+                          setChecked((c) =>
+                            e.target.checked
+                              ? [...c, item.id]
+                              : c.filter((x) => x !== item.id),
+                          )
+                        }
+                      />
+                    </TableCell>
+                    <TableCell>
                       {item.normalized.name || "Sin nombre"}
                       <p className="text-muted-foreground">
                         {item.normalized.players
                           ?.map((p) => p.name)
                           .join(" · ")}
                       </p>
+                    </TableCell>
+                    <TableCell>
+                      {state.categories.find(
+                        (c) => c.id === item.normalized.category_id,
+                      )?.name || "—"}
                     </TableCell>
                     <TableCell>{item.source}</TableCell>
                     <TableCell>
@@ -382,7 +605,14 @@ export function GoogleRegistrations({ state, actor, action }: ViewProps) {
                             : "Lista para aceptar"}
                       </Badge>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="flex gap-2">
+                      <Button
+                        disabled={busy || status !== "pending"}
+                        variant="outline"
+                        onClick={() => setQuick(item)}
+                      >
+                        Editar
+                      </Button>
                       <Button
                         disabled={busy || status !== "pending"}
                         variant="outline"
@@ -980,7 +1210,9 @@ export function GoogleRegistrations({ state, actor, action }: ViewProps) {
                               setMapping((s) => ({
                                 ...s,
                                 mappings: [
-                                  ...s.mappings.filter((m) => m.target !== t.key),
+                                  ...s.mappings.filter(
+                                    (m) => m.target !== t.key,
+                                  ),
                                   ...(e.target.value
                                     ? [
                                         {
@@ -1191,6 +1423,57 @@ export function GoogleRegistrations({ state, actor, action }: ViewProps) {
           </form>
         </>
       )}
+      <Modal
+        open={!!quick}
+        onClose={() => setQuick(null)}
+        title="Editar respuesta"
+        description="Cambia el nombre o la categoría sin aceptar la inscripción."
+      >
+        {quick && (
+          <form
+            className="flex flex-col gap-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const f = new FormData(e.currentTarget);
+              void run(async () => {
+                await bulkUpdate(
+                  [quick],
+                  () => ({
+                    name: String(f.get("name") || "").trim(),
+                    category_id: String(f.get("category_id") || ""),
+                  }),
+                  "Editada",
+                );
+                setQuick(null);
+              });
+            }}
+          >
+            <TextField
+              name="name"
+              label="Nombre del equipo"
+              defaultValue={quick.normalized.name}
+            />
+            <Choice
+              name="category_id"
+              label="Categoría"
+              value={quick.normalized.category_id}
+              onChange={(v) =>
+                setQuick({
+                  ...quick,
+                  normalized: { ...quick.normalized, category_id: v },
+                })
+              }
+              options={state.categories.map((c) => ({
+                value: c.id,
+                label: c.name,
+              }))}
+            />
+            <Button type="submit" disabled={busy}>
+              Guardar
+            </Button>
+          </form>
+        )}
+      </Modal>
       <Modal
         open={!!selected}
         onClose={() => setSelected(null)}

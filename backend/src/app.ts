@@ -428,6 +428,69 @@ export async function buildApp() {
     },
   );
   post(
+    "/v1/registrations/verify-all",
+    z.object({}),
+    "registrations",
+    async (_b, a, db) => {
+      const rows = (
+        await db.query(
+          `UPDATE teams SET verified_at=now(),status=CASE WHEN (SELECT auto_approve FROM tournaments WHERE id=teams.tournament_id) AND NOT EXISTS(SELECT 1 FROM tournament_registrations WHERE team_id=teams.id AND status<>'CONFIRMED') THEN 'approved' ELSE 'pending' END
+           WHERE organization_id=$1 AND status='verification' AND verified_at IS NULL RETURNING id`,
+          [a!.organization_id],
+        )
+      ).rows;
+      await audit(
+        db,
+        a!.organization_id,
+        a!.id,
+        "registration.verify_all",
+        null,
+        null,
+        { team_ids: rows.map((r) => r.id) },
+      );
+      return { ok: true, verified: rows.length };
+    },
+  );
+  post(
+    "/v1/registrations/resend-verification",
+    z.object({}),
+    "registrations",
+    async (_b, a, db) => {
+      ensure(
+        process.env.SMTP_URL && process.env.MAIL_FROM,
+        "El servicio de verificación no está configurado.",
+        503,
+      );
+      const rows = (
+        await db.query(
+          "SELECT id FROM teams WHERE organization_id=$1 AND status='verification' AND verified_at IS NULL",
+          [a!.organization_id],
+        )
+      ).rows;
+      for (const t of rows) {
+        const token = newToken();
+        await db.query(
+          "INSERT INTO verification_tokens VALUES($1,$2,$3,now()+interval '30 minutes',NULL)",
+          [hashToken(token), a!.organization_id, t.id],
+        );
+        await db.query(
+          "INSERT INTO registration_verification_outbox(team_id,token) VALUES($1,$2) ON CONFLICT (team_id) DO UPDATE SET token=$2,sent_at=NULL,attempts=0,next_attempt_at=now()",
+          [t.id, token],
+        );
+      }
+      await audit(
+        db,
+        a!.organization_id,
+        a!.id,
+        "registration.resend_verification",
+        null,
+        null,
+        { team_ids: rows.map((r) => r.id) },
+      );
+      return { ok: true, queued: rows.length };
+    },
+  );
+  post(
     "/v1/categories",
     z.object({
       name: short,

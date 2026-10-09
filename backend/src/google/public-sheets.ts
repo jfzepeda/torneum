@@ -37,18 +37,18 @@ export function publicSheetUrl(input: string) {
   const gid =
     url.searchParams.get("gid") ||
     new URLSearchParams(url.hash.slice(1)).get("gid") ||
-    "0";
-  ensure(/^\d+$/.test(gid), "Pestaña inválida.", 400);
+    "";
+  ensure(!gid || /^\d+$/.test(gid), "Pestaña inválida.", 400);
   const published = !!match[1];
   const csv = new URL(
     `https://docs.google.com/spreadsheets/d/${published ? "e/" : ""}${match[2]}/${published ? "pub" : "export"}`,
   );
   csv.searchParams.set(published ? "output" : "format", "csv");
-  csv.searchParams.set("gid", gid);
+  if (gid) csv.searchParams.set("gid", gid);
   if (published) csv.searchParams.set("single", "true");
   return {
     url: csv.toString(),
-    key: `${published ? "published:" : ""}${match[2]}:${gid}`,
+    key: `${published ? "published:" : ""}${match[2]}:${gid || "0"}`,
   };
 }
 function allowedRedirect(url: URL) {
