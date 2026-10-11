@@ -60,7 +60,7 @@ function ExtraInput({
           required={field.required}
           className="rounded-md border bg-background p-2"
         >
-          <option value="">Seleccionar</option>
+          <option value="">Selecciona una opción</option>
           {(field.type === "boolean" ? ["true", "false"] : field.options).map(
             (v) => (
               <option key={v} value={v}>
@@ -109,6 +109,13 @@ function ExtraInput({
             : "text"
       }
       step={field.type === "number" ? 0.01 : undefined}
+      placeholder={
+        field.type === "number"
+          ? "Ej. 10"
+          : field.type === "text"
+            ? "Escribe tu respuesta"
+            : undefined
+      }
       required={field.required}
       defaultValue={value === undefined ? "" : String(value)}
     />
@@ -136,6 +143,7 @@ export function RegistrationFields({
       <TextField
         name="name"
         label="Nombre del equipo"
+        placeholder="Ej. Los Smashers"
         defaultValue={initial?.name}
       />
       <Choice
@@ -152,12 +160,13 @@ export function RegistrationFields({
       {Array.from({ length: count }, (_, i) => (
         <fieldset key={i} className="rounded-md border p-4">
           <legend className="px-2 text-sm font-medium">
-            Participante {i + 1}
+            Participante {i + 1}{i === Number(captain) ? " · responsable" : ""}
           </legend>
           <FieldGroup>
             <TextField
               name={`players.${i}.name`}
               label={`Nombre del participante ${i + 1}`}
+              placeholder="Nombre y apellido"
               defaultValue={initial?.players[i]?.name}
             />
             {schema.email_mode === "participant" && (
@@ -165,6 +174,7 @@ export function RegistrationFields({
                 name={`players.${i}.email`}
                 label={`Correo del participante ${i + 1}`}
                 type="email"
+                placeholder="correo@ejemplo.com"
                 defaultValue={initial?.players[i]?.email}
               />
             )}
@@ -173,6 +183,7 @@ export function RegistrationFields({
                 name={`players.${i}.phone`}
                 label={`Teléfono del participante ${i + 1}`}
                 type="tel"
+                placeholder="10 dígitos, ej. 55 1234 5678"
                 required={false}
                 defaultValue={initial?.players[i]?.phone}
               />
@@ -205,6 +216,7 @@ export function RegistrationFields({
           name="email"
           label="Correo de contacto del equipo"
           type="email"
+          placeholder="correo@ejemplo.com"
           defaultValue={initial?.email}
         />
       )}
@@ -213,6 +225,7 @@ export function RegistrationFields({
           name="phone"
           label="Teléfono del equipo (opcional)"
           type="tel"
+          placeholder="10 dígitos, ej. 55 1234 5678"
           required={false}
           defaultValue={initial?.phone}
         />

@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { FieldGroup } from "@/components/ui/field";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
@@ -24,6 +25,14 @@ import {
 import type { ViewProps } from "./dashboard";
 import type { Match } from "@/lib/types";
 import { date, time } from "@/lib/api";
+function Tip({ text, children }: { text: string; children: React.ReactElement }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger render={children} />
+      <TooltipContent>{text}</TooltipContent>
+    </Tooltip>
+  );
+}
 type Change = { id: string; court_id: string | null; starts_at: string | null };
 export function CalendarView({ state, actor, action }: ViewProps) {
   const [day, setDay] = useState(state.tournament!.starts_on.slice(0, 10)),
@@ -47,6 +56,16 @@ export function CalendarView({ state, actor, action }: ViewProps) {
         .split("/")
         .reverse()
         .join("-") === day,
+  );
+  const today = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Mexico_City",
+  }).format(new Date());
+  const nowHour = Number(
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: "America/Mexico_City",
+      hour: "2-digit",
+      hour12: false,
+    }).format(new Date()),
   );
   const allHours = Array.from({ length: 15 }, (_, i) => i + 8);
   async function propose(changes: Change[]) {
@@ -92,31 +111,55 @@ export function CalendarView({ state, actor, action }: ViewProps) {
             min={state.tournament!.starts_on.slice(0, 10)}
             max={state.tournament!.ends_on.slice(0, 10)}
           />
+          {day !== today && (
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={
+                today < state.tournament!.starts_on.slice(0, 10) ||
+                today > state.tournament!.ends_on.slice(0, 10)
+              }
+              onClick={() => setDay(today)}
+            >
+              Hoy
+            </Button>
+          )}
           <span className="text-muted-foreground text-sm">
             Ciudad de México · UTC−6
           </span>
         </div>
         <div className="flex gap-2">
-          <Button
-            variant="outline"
-            disabled={!can}
-            onClick={() =>
-              void action("/v1/schedule/undo", {
-                tournament_id: state.tournament!.id,
-              }).catch(() => {})
+          <Tip
+            text={
+              can
+                ? "Revierte el último cambio publicado en el calendario."
+                : "Solo administración y programación pueden modificar el calendario."
             }
           >
-            <Undo2 data-icon="inline-start" />
-            Deshacer
-          </Button>
-          <Button
-            variant="outline"
-            disabled={!can}
-            onClick={() => setAdding(true)}
-          >
-            <Plus data-icon="inline-start" />
-            Cancha
-          </Button>
+            <Button
+              variant="outline"
+              disabled={!can}
+              onClick={() =>
+                void action("/v1/schedule/undo", {
+                  tournament_id: state.tournament!.id,
+                }).catch(() => {})
+              }
+            >
+              <Undo2 data-icon="inline-start" />
+              Deshacer
+            </Button>
+          </Tip>
+          <Tip text="Añade una cancha con su horario de apertura.">
+            <Button
+              variant="outline"
+              disabled={!can}
+              onClick={() => setAdding(true)}
+            >
+              <Plus data-icon="inline-start" />
+              Cancha
+            </Button>
+          </Tip>
+          <Tip text="Propone horarios para todos los partidos pendientes. Podrás revisarlos antes de publicar.">
           <Button
             disabled={!can || busy}
             onClick={async () => {
@@ -136,6 +179,7 @@ export function CalendarView({ state, actor, action }: ViewProps) {
             <Sparkles data-icon="inline-start" />
             {busy ? "Buscando espacios…" : "Generar calendario"}
           </Button>
+          </Tip>
         </div>
       </div>
       <div className="calendar-layout">
@@ -152,7 +196,7 @@ export function CalendarView({ state, actor, action }: ViewProps) {
               <h2>
                 Por agendar <span>{unplanned.length}</span>
               </h2>
-              <p>Arrastra a una cancha disponible.</p>
+              <p>{can ? "Arrastra a una cancha disponible o haz clic para elegir horario." : "Solo lectura: no tienes permiso para programar."}</p>
             </div>
           </div>
           <div className="unscheduled-list">
@@ -162,6 +206,7 @@ export function CalendarView({ state, actor, action }: ViewProps) {
                 key={m.id}
                 draggable={can}
                 onDragStart={() => setDrag(m)}
+                title="Clic para programar · arrastra a una cancha"
                 onClick={() => {
                   setEditing(m);
                   setCourt(state.courts[0]?.id || "");
@@ -171,7 +216,7 @@ export function CalendarView({ state, actor, action }: ViewProps) {
                   <small>
                     {state.categories.find((c) => c.id === m.category_id)?.name}
                   </small>
-                  <GripVertical size={15} />
+                  <GripVertical size={15} aria-hidden />
                 </div>
                 <strong>{name(m.home_id)}</strong>
                 <span>vs {name(m.away_id)}</span>
@@ -193,10 +238,16 @@ export function CalendarView({ state, actor, action }: ViewProps) {
           </div>
           <p className="drop-instruction">
             Para desprogramar, arrastra un partido de vuelta aquí. El encuentro
-            se conserva.
+            se conserva y puedes volver a asignarlo.
           </p>
         </aside>
         <section className="panel calendar-panel">
+          {!state.courts.length && (
+            <EmptyState
+              title="Aún no hay canchas"
+              description="Añade una cancha con el botón «Cancha» para empezar a programar partidos."
+            />
+          )}
           <div
             className="calendar-grid"
             style={{
@@ -215,7 +266,10 @@ export function CalendarView({ state, actor, action }: ViewProps) {
             ))}
             {allHours.map((hour) => (
               <div className="calendar-row-contents" key={hour}>
-                <div className="hour-label">
+                <div
+                  className={"hour-label" + (day === today && hour === nowHour ? " font-bold text-primary" : "")}
+                  title={day === today && hour === nowHour ? "Hora actual" : undefined}
+                >
                   {String(hour).padStart(2, "0")}:00
                 </div>
                 {state.courts.map((c) => {
@@ -250,6 +304,7 @@ export function CalendarView({ state, actor, action }: ViewProps) {
                               (m.status === "finished" ? "completed" : "")
                             }
                             key={m.id}
+                            title={`${name(m.home_id)} vs ${name(m.away_id)} · ${time(m.starts_at!)} — ${time(m.ends_at!)} · ${c.name}${m.status === "finished" ? " · Finalizado (no se puede mover)" : ""}`}
                             draggable={can && m.status === "scheduled"}
                             onDragStart={() => setDrag(m)}
                             onClick={() => {
@@ -271,6 +326,13 @@ export function CalendarView({ state, actor, action }: ViewProps) {
                         <button
                           className="empty-slot"
                           aria-label={`Agendar en ${c.name} a las ${hour}:00`}
+                          title={
+                            !can
+                              ? "Sin permiso para programar"
+                              : !unplanned.length
+                                ? "No hay partidos por agendar"
+                                : `Agendar «${name(unplanned[0].home_id)} vs ${name(unplanned[0].away_id)}» aquí`
+                          }
                           disabled={!can || !unplanned.length}
                           onClick={() => {
                             setEditing(unplanned[0]);
@@ -416,7 +478,7 @@ export function CalendarView({ state, actor, action }: ViewProps) {
             }
           }}
         >
-          Publicar calendario
+          {busy ? "Publicando…" : "Publicar calendario"}
         </Button>
       </Modal>
       <Modal

@@ -150,11 +150,36 @@ export function Platform() {
             </TableRow>
           </TableHeader>
           <TableBody>
+            {!orgs.length && (
+              <TableRow>
+                <TableCell
+                  colSpan={6}
+                  className="text-muted-foreground py-6 text-center"
+                >
+                  Aún no hay clubes. Crea el primero con el formulario de abajo.
+                </TableCell>
+              </TableRow>
+            )}
             {orgs.map((o) => (
               <TableRow key={o.id}>
                 <TableCell>{o.name}</TableCell>
                 <TableCell>
-                  <Link href={`/${o.slug}`}>{o.slug}</Link>
+                  <span className="inline-flex items-center gap-2">
+                    <Link href={`/${o.slug}`}>{o.slug}</Link>
+                    <Button
+                      size="icon-sm"
+                      variant="ghost"
+                      aria-label={`Copiar enlace de ${o.name}`}
+                      onClick={() => {
+                        void navigator.clipboard.writeText(
+                          `${window.location.origin}/${o.slug}`,
+                        );
+                        toast.success("Enlace copiado");
+                      }}
+                    >
+                      <Copy />
+                    </Button>
+                  </span>
                 </TableCell>
                 <TableCell>{o.tournaments}</TableCell>
                 <TableCell>{o.users}</TableCell>
@@ -164,12 +189,22 @@ export function Platform() {
                     checked={o.active}
                     aria-label={`${o.active ? "Suspender" : "Activar"} ${o.name}`}
                     onCheckedChange={async (active) => {
+                      if (
+                        !active &&
+                        !window.confirm(
+                          `¿Suspender ${o.name}? Sus usuarios perderán acceso hasta reactivarlo.`,
+                        )
+                      )
+                        return;
                       try {
                         await mutate("/v1/platform/organizations/status", {
                           id: o.id,
                           active,
                         });
                         await load();
+                        toast.success(
+                          active ? "Club activado" : "Club suspendido",
+                        );
                       } catch (e) {
                         toast.error((e as Error).message);
                       }
@@ -242,6 +277,10 @@ export function Platform() {
                   setSlug(slugify(e.target.value));
                 }}
               />
+              <small className="text-muted-foreground">
+                Se usa en la dirección del club (/{slug || "mi-club"}). Solo
+                minúsculas, números y guiones; no se recomienda cambiarlo después.
+              </small>
             </label>
             <TextField label="Nombre del administrador" name="admin_name" />
             <TextField
@@ -249,6 +288,9 @@ export function Platform() {
               name="admin_email"
               type="email"
             />
+            <small className="text-muted-foreground">
+              Se generará una contraseña temporal para el administrador.
+            </small>
             <Submit busy={busy} label="Crear club" />
           </FieldGroup>
         </form>

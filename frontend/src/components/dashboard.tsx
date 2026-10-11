@@ -51,6 +51,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Sheet,
@@ -191,7 +192,7 @@ export function Dashboard({ slug }: { slug: string }) {
   };
   if (!loaded)
     return (
-      <main className="loading-page">
+      <main className="loading-page" aria-busy="true" aria-label="Cargando torneo">
         <Skeleton className="h-10 w-48" />
         <Skeleton className="h-64 w-full" />
         <Skeleton className="h-32 w-full" />
@@ -224,7 +225,14 @@ export function Dashboard({ slug }: { slug: string }) {
               "El administrador del club aún no ha configurado ningún torneo activo."}
           </AlertDescription>
         </Alert>
-        <Button onClick={refresh}>Reintentar</Button>
+        <Button
+          onClick={() => {
+            toast.info("Reintentando…");
+            void refresh();
+          }}
+        >
+          Reintentar
+        </Button>
       </main>
     );
   }
@@ -268,7 +276,13 @@ export function Dashboard({ slug }: { slug: string }) {
                       <Icon />
                       <span>{label}</span>
                       {key === "inscripciones" && pending > 0 && (
-                        <span className="nav-count">{pending}</span>
+                        <span
+                          className="nav-count"
+                          aria-label={`${pending} por aprobar`}
+                          title={`${pending} por aprobar`}
+                        >
+                          {pending}
+                        </span>
                       )}
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -293,14 +307,23 @@ export function Dashboard({ slug }: { slug: string }) {
               <strong>{actor.name}</strong>
               <small>{labels[actor.role]}</small>
             </div>
-            <Button
-              size="icon"
-              variant="ghost"
-              aria-label="Cerrar sesión"
-              onClick={() => void action("/v1/logout", {}).catch(() => {})}
-            >
-              <LogOut />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    aria-label="Cerrar sesión"
+                    onClick={() =>
+                      void action("/v1/logout", {}).catch(() => {})
+                    }
+                  />
+                }
+              >
+                <LogOut />
+              </TooltipTrigger>
+              <TooltipContent>Cerrar sesión</TooltipContent>
+            </Tooltip>
           </div>
         </SidebarFooter>
       </Sidebar>
@@ -313,18 +336,31 @@ export function Dashboard({ slug }: { slug: string }) {
             <strong>{title}</strong>
           </div>
           <div className="top-actions">
-            <span className="connection">
+            <span
+              className="connection"
+              title="Los datos se actualizan automáticamente en tiempo real"
+              role="status"
+            >
               <span />
               Sincronizado
             </span>
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Cambiar tema"
-              onClick={() => document.documentElement.classList.toggle("dark")}
-            >
-              <Sun />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Cambiar tema"
+                    onClick={() =>
+                      document.documentElement.classList.toggle("dark")
+                    }
+                  />
+                }
+              >
+                <Sun />
+              </TooltipTrigger>
+              <TooltipContent>Cambiar entre tema claro y oscuro</TooltipContent>
+            </Tooltip>
             <Button
               variant="outline"
               nativeButton={false}
@@ -589,7 +625,11 @@ function Login({
               type="email"
               placeholder="tu@club.com"
             />
-            <TextField label="Contraseña" name="password" type="password" />
+            <TextField
+              label="Contraseña"
+              name="password"
+              type="password"
+            />
             <Submit busy={busy} label="Entrar al torneo" />
           </FieldGroup>
         </form>
@@ -613,7 +653,8 @@ function Overview({ state, go }: ViewProps & { go: (view: string) => void }) {
   const approved = state.teams.filter((x) => x.status === "approved").length,
     pending = state.teams.filter((x) => x.status === "pending").length,
     finished = state.matches.filter((x) => x.status === "finished").length,
-    unplanned = state.matches.filter((x) => x.status === "unscheduled").length;
+    unplanned = state.matches.filter((x) => x.status === "unscheduled").length,
+    pendingRequests = state.requests.filter((r) => r.status === "pending").length;
   const upcoming = state.matches
     .filter((m) => ["scheduled", "live"].includes(m.status))
     .slice(0, 5);
@@ -682,7 +723,12 @@ function Overview({ state, go }: ViewProps & { go: (view: string) => void }) {
             icon: CalendarDays,
           },
         ].map((m) => (
-          <button key={m.label} className="metric" onClick={() => go(m.view)}>
+          <button
+            key={m.label}
+            className="metric"
+            title={`${m.label}: ${m.sub}`}
+            onClick={() => go(m.view)}
+          >
             <div>
               <span>{m.label}</span>
               <m.icon size={17} />
@@ -746,6 +792,11 @@ function Overview({ state, go }: ViewProps & { go: (view: string) => void }) {
                 (unplanned ? 1 : 0)}
             </span>
           </div>
+          {pending + unplanned + pendingRequests === 0 && (
+            <p className="px-1 py-3 text-sm text-muted-foreground">
+              Todo en orden: no hay pendientes por ahora.
+            </p>
+          )}
           <button
             className="attention-item"
             onClick={() => go("inscripciones")}
@@ -803,6 +854,12 @@ function Overview({ state, go }: ViewProps & { go: (view: string) => void }) {
             <ArrowRight data-icon="inline-end" />
           </Button>
         </div>
+        {state.categories.length === 0 && (
+          <EmptyState
+            title="Aún no hay categorías"
+            description="Crea la primera categoría para empezar a recibir inscripciones."
+          />
+        )}
         <div className="category-progress-grid">
           {state.categories.map((c, i) => {
             const teams = state.teams.filter(
@@ -822,7 +879,11 @@ function Overview({ state, go }: ViewProps & { go: (view: string) => void }) {
                     <em> / {c.capacity}</em>
                   </strong>
                 </div>
-                <progress max={c.capacity} value={teams} />
+                <progress
+                  max={c.capacity}
+                  value={teams}
+                  aria-label={`${teams} de ${c.capacity} parejas confirmadas`}
+                />
                 <small>
                   {c.draw_published
                     ? "Fase de grupos"

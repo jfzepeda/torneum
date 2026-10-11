@@ -14,6 +14,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
 import { FieldGroup } from "@/components/ui/field";
 import {
@@ -37,6 +38,18 @@ import {
   formValue,
 } from "./common";
 import type { ViewProps, Action } from "./dashboard";
+
+// span wrapper so the tooltip also shows on disabled buttons
+function Tip({ text, children }: { text: string; children: React.ReactNode }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger render={<span className="inline-flex" />}>
+        {children}
+      </TooltipTrigger>
+      <TooltipContent>{text}</TooltipContent>
+    </Tooltip>
+  );
+}
 import type { State, Match, Actor, Team, Category } from "@/lib/types";
 import { labels, time, date, API } from "@/lib/api";
 export function Operations({
@@ -167,6 +180,7 @@ export function Operations({
           </Button>
         ) : view === "equipos" && can("registration") ? (
           <div className="flex gap-2">
+            <Tip text="Vuelve a enviar el correo a las parejas que aún no verifican su correo.">
             <Button
               variant="outline"
               disabled={busy || !toVerify.length}
@@ -177,8 +191,10 @@ export function Operations({
                 )
               }
             >
-              Reenviar verificación
+              Reenviar verificación{toVerify.length ? ` (${toVerify.length})` : ""}
             </Button>
+            </Tip>
+            <Tip text="Marca el correo como verificado sin esperar la confirmación del capitán.">
             <Button
               disabled={busy || !toVerify.length}
               onClick={() =>
@@ -191,6 +207,7 @@ export function Operations({
               <Check data-icon="inline-start" />
               Verificar todos
             </Button>
+            </Tip>
           </div>
         ) : null}
       </div>
@@ -240,6 +257,7 @@ export function Operations({
                     <Button
                       variant="ghost"
                       size="sm"
+                      aria-label={`Ver detalle de ${t.name}`}
                       onClick={() => setSelected(t)}
                     >
                       Ver detalle
@@ -251,7 +269,7 @@ export function Operations({
             </TableBody>
           </Table>
           {!teams.length && (
-            <EmptyState title="No hay parejas con estos filtros" />
+            <EmptyState title="No hay parejas con estos filtros" description="Prueba cambiar la categoría, el estatus o la búsqueda." />
           )}
           <div className="pagination">
             <span>{teams.length} parejas</span>
@@ -357,6 +375,7 @@ export function Operations({
                 onChange={(e) => setSeed(e.target.value)}
                 placeholder="Semilla opcional"
               />
+              <Tip text="El sorteo reparte las parejas en grupos al azar. La misma semilla siempre da el mismo resultado; nada se publica hasta confirmar.">
               <Button
                 disabled={!can("registration") || category === "all"}
                 onClick={async () => {
@@ -376,6 +395,7 @@ export function Operations({
                 <Shuffle data-icon="inline-start" />
                 Vista previa
               </Button>
+              </Tip>
             </div>
             {category === "all" && (
               <small>Selecciona una categoría para sortear.</small>
@@ -498,6 +518,7 @@ export function Operations({
                           <Button
                             variant="outline"
                             size="sm"
+                            aria-label={`${m.status === "finished" ? "Corregir" : "Capturar"} resultado de ${name(m.home_id)} contra ${name(m.away_id)}`}
                             onClick={() => setResult(m)}
                           >
                             {m.status === "finished" ? "Corregir" : "Capturar"}
@@ -690,7 +711,9 @@ export function Operations({
               ))}
             </div>
             <Button
+              disabled={busy}
               onClick={async () => {
+                setBusy(true);
                 try {
                   await action("/v1/draw", {
                     category_id: preview.category_id,
@@ -698,7 +721,10 @@ export function Operations({
                     publish: true,
                   });
                   setPreview(null);
-                } catch {}
+                } catch {
+                } finally {
+                  setBusy(false);
+                }
               }}
             >
               Publicar sorteo

@@ -1999,3 +1999,58 @@ button.metric:hover {
     scroll-behavior: auto !important;
   }
 }
+
+/* UX polish: selection, scrollbars, numerics, motion, touch */
+::selection {
+  background: color-mix(in oklch, var(--primary) 28%, transparent);
+  color: inherit;
+}
+html {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklch, var(--muted-foreground) 35%, transparent) transparent;
+}
+body {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+table,
+time,
+[data-slot="badge"] {
+  font-variant-numeric: tabular-nums;
+}
+:where(a, button, [role="button"], summary, select, label[for]):not(:disabled) {
+  cursor: pointer;
+}
+:where(button, [role="button"], a, input, select, textarea):focus-visible {
+  outline: 2px solid color-mix(in oklch, var(--ring) 80%, transparent);
+  outline-offset: 2px;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: color-mix(in oklch, var(--muted-foreground) 30%, transparent);
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in oklch, var(--muted-foreground) 55%, transparent);
+  background-clip: content-box;
+}
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

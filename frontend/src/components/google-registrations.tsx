@@ -349,13 +349,20 @@ export function GoogleRegistrations({ state, actor, action }: ViewProps) {
         <Button variant="outline" onClick={() => setInternal(true)}>
           Alta del organizador
         </Button>
-        <Button
-          variant="outline"
-          disabled={busy}
-          onClick={() => run(load, false)}
-        >
-          Actualizar
-        </Button>
+        <Tip text="Vuelve a cargar respuestas y fuentes desde el servidor.">
+          <Button
+            variant="outline"
+            disabled={busy}
+            onClick={() =>
+              run(async () => {
+                await load();
+                toast.success("Datos actualizados");
+              }, false)
+            }
+          >
+            {busy ? "Actualizando…" : "Actualizar"}
+          </Button>
+        </Tip>
       </div>
       {error && (
         <Alert variant="destructive">
@@ -394,6 +401,15 @@ export function GoogleRegistrations({ state, actor, action }: ViewProps) {
                 }
                 onClick={() =>
                   run(async () => {
+                    const ready = items.filter(
+                      (i) => !i.review_required && !i.errors.length,
+                    ).length;
+                    if (
+                      !window.confirm(
+                        `¿Aceptar ${ready} inscripciones válidas de esta página? Se crearán equipos nuevos.`,
+                      )
+                    )
+                      return;
                     let accepted = 0;
                     const failures: string[] = [];
                     for (const item of items.filter(
@@ -413,7 +429,10 @@ export function GoogleRegistrations({ state, actor, action }: ViewProps) {
                   })
                 }
               >
-                Aceptar válidas de esta página
+                Aceptar válidas de esta página (
+                {items.filter((i) => !i.review_required && !i.errors.length)
+                  .length}
+                )
               </Button>
             )}
           </div>
@@ -546,7 +565,14 @@ export function GoogleRegistrations({ state, actor, action }: ViewProps) {
             </TooltipProvider>
           )}
           {!items.length ? (
-            <EmptyState title="No hay respuestas en este estado" />
+            <EmptyState
+              title="No hay respuestas en este estado"
+              description={
+                status === "pending"
+                  ? "Conecta un Google Form o Sheet en la pestaña Google Forms / Sheets, o usa «Alta del organizador»."
+                  : "Cambia el filtro de estado para ver otras respuestas."
+              }
+            />
           ) : (
             <Table>
               <TableHeader>
@@ -565,7 +591,7 @@ export function GoogleRegistrations({ state, actor, action }: ViewProps) {
                     <TableCell>
                       <input
                         type="checkbox"
-                        aria-label="Seleccionar"
+                        aria-label={`Seleccionar ${item.normalized.name || "respuesta sin nombre"}`}
                         disabled={status !== "pending"}
                         checked={checked.includes(item.id)}
                         onChange={(e) =>
@@ -592,39 +618,53 @@ export function GoogleRegistrations({ state, actor, action }: ViewProps) {
                     </TableCell>
                     <TableCell>{item.source}</TableCell>
                     <TableCell>
-                      <Badge
-                        variant="outline"
-                        className={
-                          item.review_required ? "status status-pending" : ""
+                      <Tip
+                        text={
+                          item.errors.length
+                            ? `Falta o es inválido: ${item.errors.join(" · ")}`
+                            : item.review_required
+                              ? "Posible duplicado o cambio de una inscripción existente. Ábrela con «Revisar»."
+                              : "Sin errores ni coincidencias: se puede aceptar."
                         }
                       >
-                        {item.review_required
-                          ? "Amarillo · revisar"
-                          : item.errors.length
-                            ? "Datos incompletos"
-                            : "Lista para aceptar"}
-                      </Badge>
+                        <Badge
+                          variant="outline"
+                          className={
+                            item.review_required ? "status status-pending" : ""
+                          }
+                        >
+                          {item.review_required
+                            ? "Amarillo · revisar"
+                            : item.errors.length
+                              ? "Datos incompletos"
+                              : "Lista para aceptar"}
+                        </Badge>
+                      </Tip>
                     </TableCell>
                     <TableCell className="flex gap-2">
-                      <Button
-                        disabled={busy || status !== "pending"}
-                        variant="outline"
-                        onClick={() => setQuick(item)}
-                      >
-                        Editar
-                      </Button>
-                      <Button
-                        disabled={busy || status !== "pending"}
-                        variant="outline"
-                        onClick={() => {
-                          setSelected(item);
-                          setLink(item.team_id || "");
-                          setDistinct(false);
-                          setApplyFields([]);
-                        }}
-                      >
-                        Revisar
-                      </Button>
+                      <Tip text="Cambia el nombre o la categoría sin aceptar.">
+                        <Button
+                          disabled={busy || status !== "pending"}
+                          variant="outline"
+                          onClick={() => setQuick(item)}
+                        >
+                          Editar
+                        </Button>
+                      </Tip>
+                      <Tip text="Compara con inscripciones existentes y decide: aceptar, vincular o descartar.">
+                        <Button
+                          disabled={busy || status !== "pending"}
+                          variant="outline"
+                          onClick={() => {
+                            setSelected(item);
+                            setLink(item.team_id || "");
+                            setDistinct(false);
+                            setApplyFields([]);
+                          }}
+                        >
+                          Revisar
+                        </Button>
+                      </Tip>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -639,6 +679,9 @@ export function GoogleRegistrations({ state, actor, action }: ViewProps) {
             >
               Anterior
             </Button>
+            <span className="self-center text-xs text-muted-foreground">
+              Página {Math.floor(offset / 50) + 1}
+            </span>
             <Button
               variant="outline"
               disabled={next === null || busy}
@@ -886,8 +929,8 @@ export function GoogleRegistrations({ state, actor, action }: ViewProps) {
             </Button>
             {!caps.googleOAuth.available && (
               <p>
-                Conexión con Google no configurada. Puedes importar mediante
-                Google Sheets público.
+                Conexión con Google no configurada en este servidor. Puedes
+                importar mediante Google Sheets público.
               </p>
             )}
             <Choice
@@ -931,6 +974,7 @@ export function GoogleRegistrations({ state, actor, action }: ViewProps) {
                 </FieldLabel>
                 <Input
                   id="google-source-name"
+                  placeholder="Ej.: Inscripciones categoría Open"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                 />
@@ -943,6 +987,11 @@ export function GoogleRegistrations({ state, actor, action }: ViewProps) {
                 </FieldLabel>
                 <Input
                   id="google-source-url"
+                  placeholder={
+                    method === "google_sheets_public"
+                      ? "https://docs.google.com/spreadsheets/d/…"
+                      : "ID del formulario o enlace de edición"
+                  }
                   disabled={!!editing}
                   value={url}
                   onChange={(e) => {
@@ -970,9 +1019,20 @@ export function GoogleRegistrations({ state, actor, action }: ViewProps) {
                 </Field>
               )}
             </FieldGroup>
-            <Button disabled={busy || !url} onClick={() => run(inspect, false)}>
-              Validar y previsualizar
-            </Button>
+            <Tip
+              text={
+                url
+                  ? "Lee la fuente sin guardar nada para que revises las columnas."
+                  : "Pega primero el enlace o ID de la fuente."
+              }
+            >
+              <Button
+                disabled={busy || !url}
+                onClick={() => run(inspect, false)}
+              >
+                {busy ? "Validando…" : "Validar y previsualizar"}
+              </Button>
+            </Tip>
             {preview && (
               <>
                 {preview.warnings.map((w) => (
@@ -1252,6 +1312,12 @@ export function GoogleRegistrations({ state, actor, action }: ViewProps) {
           </section>
           <section className="panel flex flex-col gap-3 p-4 sm:p-6">
             <h2>Fuentes conectadas</h2>
+            {!integrations.length && (
+              <p className="text-sm text-muted-foreground">
+                Aún no hay fuentes. Conecta una arriba para importar
+                inscripciones automáticamente.
+              </p>
+            )}
             {integrations.map((i) => (
               <article
                 key={i.id}
@@ -1274,7 +1340,10 @@ export function GoogleRegistrations({ state, actor, action }: ViewProps) {
                   <Button
                     disabled={busy}
                     onClick={() =>
-                      run(() => mutate(`/v1/integrations/${i.id}/sync`, {}))
+                      run(async () => {
+                        await mutate(`/v1/integrations/${i.id}/sync`, {});
+                        toast.success("Sincronización completada");
+                      })
                     }
                   >
                     Sincronizar ahora
@@ -1298,12 +1367,17 @@ export function GoogleRegistrations({ state, actor, action }: ViewProps) {
                     disabled={busy}
                     variant="outline"
                     onClick={() =>
-                      run(() =>
-                        mutate("/v1/integrations/toggle", {
+                      run(async () => {
+                        await mutate("/v1/integrations/toggle", {
                           id: i.id,
                           enabled: !i.enabled,
-                        }),
-                      )
+                        });
+                        toast.success(
+                          i.enabled
+                            ? "Sincronización pausada"
+                            : "Sincronización reanudada",
+                        );
+                      })
                     }
                   >
                     {i.enabled ? "Pausar" : "Reanudar"}
@@ -1634,9 +1708,13 @@ export function GoogleRegistrations({ state, actor, action }: ViewProps) {
                     variant="outline"
                     disabled={busy}
                     onClick={() =>
+                      window.confirm(
+                        "¿Descartar esta respuesta? No se creará ninguna inscripción.",
+                      ) &&
                       run(async () => {
                         await resolve(selected, "discard");
                         setSelected(null);
+                        toast.success("Respuesta descartada");
                       })
                     }
                   >

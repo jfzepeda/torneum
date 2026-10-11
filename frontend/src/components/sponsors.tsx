@@ -1,7 +1,9 @@
 "use client";
 import {Research} from "./research";
 import { useState } from "react";
-import { Plus, Mail, ExternalLink, FileText, Sparkles } from "lucide-react";
+import { Plus, Mail, ExternalLink, FileText, Sparkles, Copy } from "lucide-react";
+import { toast } from "sonner";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { FieldGroup, Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -30,6 +32,21 @@ import { ChatPanel } from "./chat-panel";
 import type { ViewProps } from "./dashboard";
 import type { Sponsor, Message } from "@/lib/types";
 import { labels } from "@/lib/api";
+function Tip({ text, children }: { text: string; children: React.ReactNode }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger render={<span className="inline-flex" />}>
+        {children}
+      </TooltipTrigger>
+      <TooltipContent>{text}</TooltipContent>
+    </Tooltip>
+  );
+}
+const copy = (text: string, what: string) =>
+  navigator.clipboard
+    .writeText(text)
+    .then(() => toast.success(`${what} copiado`))
+    .catch(() => toast.error("No se pudo copiar"));
 export function Sponsors({ state, actor, action }: ViewProps) {
   const [editing, setEditing] = useState<Sponsor | true | null>(null),
     [proposal, setProposal] = useState<Sponsor | null>(null),
@@ -86,16 +103,32 @@ export function Sponsors({ state, actor, action }: ViewProps) {
                 <TableRow key={s.id}>
                   <TableCell>
                     <strong>{s.name}</strong>
-                    <small className="block text-muted-foreground">
+                    <small className="flex items-center gap-1 text-muted-foreground">
                       {s.email || "Sin contacto verificado"}
+                      {s.email && (
+                        <Tip text="Copiar correo">
+                          <Button
+                            size="icon-xs"
+                            variant="ghost"
+                            aria-label={`Copiar correo de ${s.name}`}
+                            onClick={() => copy(s.email!, "Correo")}
+                          >
+                            <Copy />
+                          </Button>
+                        </Tip>
+                      )}
                     </small>
                   </TableCell>
                   <TableCell>
                     {state.levels.find((l) => l.id === s.level_id)?.name ||
                       "Por definir"}
                   </TableCell>
-                  <TableCell>{s.affinity} / 100</TableCell>
-                  <TableCell>{s.evidence.length} fuentes</TableCell>
+                  <TableCell>
+                    <Tip text="Puntuación de 0 a 100 según presencia local, deporte, antecedentes, contacto y fuente reciente.">
+                      <span>{s.affinity} / 100</span>
+                    </Tip>
+                  </TableCell>
+                  <TableCell>{s.evidence.length} {s.evidence.length === 1 ? "fuente" : "fuentes"}</TableCell>
                   <TableCell>
                     <Status value={s.status} />
                   </TableCell>
@@ -104,14 +137,24 @@ export function Sponsors({ state, actor, action }: ViewProps) {
                       <Button size="sm" variant="ghost" onClick={() => edit(s)}>
                         Detalle
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={s.status === "excluded" || !s.email}
-                        onClick={() => setProposal(s)}
+                      <Tip
+                        text={
+                          s.status === "excluded"
+                            ? "Este prospecto está excluido."
+                            : !s.email
+                              ? "Agrega un correo en el detalle para crear una propuesta."
+                              : "Redactar una propuesta de patrocinio."
+                        }
                       >
-                        Propuesta
-                      </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={s.status === "excluded" || !s.email}
+                          onClick={() => setProposal(s)}
+                        >
+                          Propuesta
+                        </Button>
+                      </Tip>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -133,6 +176,12 @@ export function Sponsors({ state, actor, action }: ViewProps) {
             Crear paquete
           </Button>
         </div>
+        {!state.levels.length && (
+          <EmptyState
+            title="Aún no hay paquetes"
+            description="Crea un paquete con monto y beneficios para asignarlo a tus prospectos."
+          />
+        )}
         <div className="category-grid">
           {state.levels.map((l) => (
             <section className="panel level-card" key={l.id}>
@@ -166,7 +215,7 @@ export function Sponsors({ state, actor, action }: ViewProps) {
       </TabsContent>
       <TabsContent value="messages">
         <div className="view-toolbar">
-          <span>{selected.length} seleccionados</span>
+          <span aria-live="polite">{selected.length} {selected.length === 1 ? "seleccionado" : "seleccionados"}</span>
           <div className="flex flex-wrap gap-2">
             <Confirm
               disabled={!selected.length}
@@ -201,6 +250,7 @@ export function Sponsors({ state, actor, action }: ViewProps) {
             </Confirm>
             <Button
               variant="outline"
+              title="Abre Google para autorizar el envío desde tu cuenta de Gmail"
               onClick={async () => {
                 try {
                   const r = await action("/v1/gmail/connect", {});
@@ -217,7 +267,16 @@ export function Sponsors({ state, actor, action }: ViewProps) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Selección</TableHead>
+                <TableHead>
+                  <input
+                    aria-label="Seleccionar todas las propuestas"
+                    type="checkbox"
+                    checked={!!state.messages.length && selected.length === state.messages.length}
+                    onChange={(e) =>
+                      setSelected(e.target.checked ? state.messages.map((m) => m.id) : [])
+                    }
+                  />
+                </TableHead>
                 <TableHead>Destinatario</TableHead>
                 <TableHead>Asunto</TableHead>
                 <TableHead>Estado</TableHead>
@@ -282,6 +341,11 @@ export function Sponsors({ state, actor, action }: ViewProps) {
               ))}
             </TableBody>
           </Table>
+          {!state.integrations.gmail && (
+            <small className="block p-3 text-muted-foreground">
+              Conecta Gmail para enviar lotes automáticamente; sin él solo podrás abrir correos manuales.
+            </small>
+          )}
           {!state.messages.length && (
             <EmptyState
               title="No hay propuestas todavía"
@@ -435,7 +499,7 @@ export function Sponsors({ state, actor, action }: ViewProps) {
             </div>
             <small className="text-muted-foreground">
               Puntuación: presencia local 25, deporte 25, antecedentes 30,
-              contacto 10 y fuente reciente 10.
+              contacto 10 y fuente reciente 10. Marca las casillas que apliquen.
             </small>
             <Submit busy={busy} />
           </FieldGroup>
@@ -512,6 +576,14 @@ export function Sponsors({ state, actor, action }: ViewProps) {
               {preview.body}
             </p>
             <Status value={preview.status} />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => copy(preview.body, "Mensaje")}
+            >
+              <Copy data-icon="inline-start" />
+              Copiar mensaje
+            </Button>
             {preview.status === "approved" && preview.channel === "manual" && (
               <div className="flex gap-3">
                 <Button

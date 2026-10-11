@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { get, mutate } from "@/lib/api";
 import type { State, Category } from "@/lib/types";
+import { toast } from "sonner";
 import { Button } from "./ui/button";
 import { TextField, Submit, Choice, formValue } from "./common";
 export type RegistrationPayment = {
@@ -45,7 +46,10 @@ export function ParticipantPayment({
     <section className="panel p-6 space-y-3" aria-live="polite">
       <h2>{statuses[registration.status] || registration.status}</h2>
       <p>
-        {money(registration.amount_cents)} MXN ·{" "}
+        {registration.amount_cents > 0
+          ? `${money(registration.amount_cents)} MXN`
+          : "$0.00 MXN"}{" "}
+        ·{" "}
         {registration.payment_mode === "free"
           ? "Sin costo"
           : registration.payment_mode === "external"
@@ -90,7 +94,7 @@ export function ParticipantPayment({
                 }
               }}
             >
-              Pagar inscripción
+              {busy ? "Redirigiendo a Stripe…" : "Pagar inscripción"}
             </Button>
           ) : (
             <p>
@@ -144,6 +148,7 @@ function CategoryPayment({
               : null,
           });
           await saved();
+          toast.success("Cobro de categoría guardado");
         } catch (e) {
           setError((e as Error).message);
         } finally {
@@ -171,6 +176,7 @@ function CategoryPayment({
           type="number"
           min={0.01}
           step={0.01}
+          placeholder="Ej. 500.00"
           defaultValue={String((category.price_cents || 0) / 100)}
         />
       )}
@@ -180,6 +186,7 @@ function CategoryPayment({
         type="number"
         min={1}
         max={100}
+        placeholder="Ej. 2 para parejas"
         defaultValue={String(category.participant_count || 2)}
       />
       <TextField
@@ -199,10 +206,13 @@ function CategoryPayment({
       <TextField
         label="Políticas de cancelación, reembolso y facturación del organizador"
         name="policy"
+        placeholder="Ej. Reembolso total hasta 48 h antes del torneo"
         defaultValue={category.payment_policy || ""}
         required={mode !== "free"}
       />
-      <p>Los cambios de precio se aplican a inscripciones nuevas.</p>
+      <p className="text-sm text-muted-foreground">
+        Los cambios de precio se aplican a inscripciones nuevas.
+      </p>
       {error && <p role="alert">{error}</p>}
       <Submit busy={busy} label="Guardar cobro de categoría" />
     </form>
@@ -272,7 +282,11 @@ export function PaymentSettings({ state }: { state: State }) {
             }
           }}
         >
-          {account?.connected ? "Completar verificación" : "Conectar Stripe"}
+          {busy
+            ? "Abriendo Stripe…"
+            : account?.connected
+              ? "Completar verificación"
+              : "Conectar Stripe"}
         </Button>
         {account?.connected && (
           <>
@@ -298,6 +312,7 @@ export function PaymentSettings({ state }: { state: State }) {
                 try {
                   await mutate("/v1/stripe/disconnect", {});
                   await load();
+                  toast.success("Stripe desconectado");
                 } catch (e) {
                   setError((e as Error).message);
                 } finally {
@@ -311,7 +326,11 @@ export function PaymentSettings({ state }: { state: State }) {
         )}
         <Button
           variant="outline"
-          onClick={() => void load().catch((e) => setError(e.message))}
+          onClick={() =>
+            void load()
+              .then(() => toast.success("Estado actualizado"))
+              .catch((e) => setError(e.message))
+          }
         >
           Actualizar estado
         </Button>
@@ -323,13 +342,21 @@ export function PaymentSettings({ state }: { state: State }) {
       <div className="panel p-6 space-y-3">
         <h3>Pagos del torneo</h3>
         {!registrations.length && (
-          <p>No hay inscripciones con este flujo de pagos.</p>
+          <p className="text-sm text-muted-foreground">
+            Aún no hay inscripciones con cobro. Aparecerán aquí cuando los
+            equipos se inscriban.
+          </p>
         )}
         {registrations.map((r) => (
           <div key={r.id} className="border-b py-3">
             <strong>{r.name}</strong>
+            {r.email && (
+              <span className="ml-2 text-sm text-muted-foreground">
+                {r.email}
+              </span>
+            )}
             <p>
-              {money(r.amount_cents)} · {statuses[r.status]}
+              {money(r.amount_cents)} · {statuses[r.status] || r.status}
               {r.payment_status &&
                 ` · ${statuses[r.payment_status] || r.payment_status}`}
             </p>
@@ -339,7 +366,7 @@ export function PaymentSettings({ state }: { state: State }) {
                   variant="outline"
                   onClick={async () => {
                     const reference = window.prompt(
-                      "Referencia del pago externo recibido",
+                      "Referencia del pago externo recibido (ej. folio de transferencia o recibo)",
                     );
                     if (!reference) return;
                     try {
@@ -348,6 +375,7 @@ export function PaymentSettings({ state }: { state: State }) {
                         { reference },
                       );
                       await load();
+                      toast.success("Pago externo confirmado");
                     } catch (e) {
                       setError((e as Error).message);
                     }

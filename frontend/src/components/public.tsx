@@ -124,7 +124,10 @@ export function Portal({ slug }: { slug: string }) {
   if (!state.tournament)
     return (
       <PublicShell slug={slug} orgName={state?.organization?.name}>
-        <EmptyState title="No hay torneo activo" />
+        <EmptyState
+          title="No hay torneo activo"
+          description="Cuando el club publique un torneo lo verás aquí. Vuelve pronto."
+        />
       </PublicShell>
     );
   const t = state.tournament;
@@ -249,8 +252,12 @@ export function Portal({ slug }: { slug: string }) {
             </div>
             {!matches.length && (
               <EmptyState
-                title="El sorteo está por anunciarse"
-                description="Vuelve pronto para conocer los grupos y el calendario."
+                title={
+                  category === "all"
+                    ? "El sorteo está por anunciarse"
+                    : "Esta categoría aún no tiene partidos"
+                }
+                description="Vuelve pronto para conocer los grupos y el calendario. La página se actualiza sola."
               />
             )}
           </TabsContent>
@@ -365,8 +372,9 @@ export function Registration({ slug }: { slug: string }) {
         <div className="eyebrow">EL PRIMER PASO HACIA LA CANCHA</div>
         <h1>Registra tu participación.</h1>
         <p>
-          Una persona registra a los participantes. Verifica el correo para
-          continuar al pago.
+          Un solo integrante (el capitán) llena el formulario por la pareja.
+          Después recibirá un correo para verificar la inscripción y, si tiene
+          costo, completar el pago. Toma unos 2 minutos.
         </p>
         {error && (
           <Alert variant="destructive">
@@ -378,8 +386,15 @@ export function Registration({ slug }: { slug: string }) {
             <CheckCircle2 size={38} />
             <h2>{reviewPending ? "Solicitud recibida." : "Un paso más y están dentro."}</h2>
             <p>
-              {reviewPending ? "El organizador revisará la solicitud antes de completar el alta." : "Verifica el correo del capitán con el enlace enviado. Después podrás gestionar la inscripción y completar el pago si tiene costo."}
+              {reviewPending ? "El organizador revisará la solicitud antes de completar el alta." : "Verifica el correo del capitán con el enlace enviado. Después podrás gestionar la inscripción y completar el pago si tiene costo. Si no lo ves, revisa spam o correo no deseado."}
             </p>
+            <Button
+              variant="outline"
+              nativeButton={false}
+              render={<Link href={`/${slug}/portal`} />}
+            >
+              Volver al torneo
+            </Button>
             {devLink && (
               <Alert>
                 <AlertTitle>Entorno local de pruebas</AlertTitle>
@@ -413,8 +428,12 @@ export function Registration({ slug }: { slug: string }) {
                 setReviewPending(Boolean(r.review_pending));
                 setDevLink((r.development_link as string) || "");
                 setDone(true);
+                toast.success("Inscripción enviada");
+                window.scrollTo({ top: 0, behavior: "smooth" });
               } catch (e) {
-                setMessage((e as Error).message);
+                setMessage(
+                  `${(e as Error).message} Revisa los datos e inténtalo de nuevo.`,
+                );
               } finally {
                 setBusy(false);
               }
@@ -422,7 +441,15 @@ export function Registration({ slug }: { slug: string }) {
           >
             <FieldGroup>
               {state && <RegistrationFields schema={state?.tournament?.registration_schema || defaultSchema} categories={state.categories.filter(c => !c.draw_published)} onCategoryChange={setCategory}/> }
-              <p>{money(selected?.price_cents || 0)} MXN · {selected?.payment_policy}</p>
+              <p className="text-sm text-muted-foreground">
+                Costo de inscripción:{" "}
+                <strong>
+                  {selected?.price_cents
+                    ? `${money(selected.price_cents)} MXN`
+                    : "Gratis"}
+                </strong>
+                {selected?.payment_policy ? ` · ${selected.payment_policy}` : ""}
+              </p>
               <Alert>
                 <AlertDescription>
                   La inscripción incluye los datos de los participantes. El
@@ -469,9 +496,15 @@ export function Verification({ slug }: { slug: string }) {
     <PublicShell slug={slug}>
       <main className="registration-page">
         <h1>Verificación de inscripción</h1>
-        <Alert>
+        <Alert role="status" aria-live="polite">
           <AlertDescription>{status}</AlertDescription>
         </Alert>
+        {!status.startsWith("Verificando") && (
+          <p>
+            Si el enlace venció, entra a Mi pareja y solicita uno nuevo con el
+            correo del capitán.
+          </p>
+        )}
         <Link href={`/${slug}/mi-pareja`}>Ir a mi pareja</Link>
       </main>
     </PublicShell>
@@ -536,8 +569,15 @@ export function MyTeam({ slug }: { slug: string }) {
         <h1>{team?.name || "Gestiona tu pareja."}</h1>
         {!team ? (
           <section className="panel registration-form">
-            <p>Solicita un enlace temporal al correo del capitán.</p>
-            {error && <small>{error}</small>}
+            <p>
+              Escribe el correo con el que se inscribió la pareja y te
+              enviaremos un enlace temporal para entrar, sin contraseña.
+            </p>
+            {error && (
+              <small role="alert" className="text-destructive">
+                {error}
+              </small>
+            )}
             <form
               onSubmit={async (e) => {
                 e.preventDefault();
@@ -549,6 +589,8 @@ export function MyTeam({ slug }: { slug: string }) {
                     email: formValue(d, "email"),
                   });
                   setSent(true);
+                  setError("");
+                  toast.success("Revisa tu correo");
                 } catch (e) {
                   setError((e as Error).message);
                 } finally {
@@ -567,7 +609,7 @@ export function MyTeam({ slug }: { slug: string }) {
                   <Alert>
                     <AlertDescription>
                       Si existe una inscripción y el correo está habilitado,
-                      recibirás el enlace de acceso.
+                      recibirás el enlace de acceso en unos minutos. Revisa también spam.
                     </AlertDescription>
                   </Alert>
                 )}
@@ -595,6 +637,12 @@ export function MyTeam({ slug }: { slug: string }) {
               />
             )}
             <h2 className="section-title">Tus partidos</h2>
+            {!ownMatches.length && (
+              <p className="text-sm text-muted-foreground">
+                Aún no tienen partidos asignados. Aparecerán aquí cuando se
+                publique el sorteo.
+              </p>
+            )}
             <div className="public-matches">
               {ownMatches.map((m) => (
                 <section className="panel public-match" key={m.id}>
@@ -614,7 +662,7 @@ export function MyTeam({ slug }: { slug: string }) {
                   <p>{m.score?.sets.map((s) => s.join("–")).join("  ")}</p>
                   {!["finished", "disputed"].includes(m.status) && (
                     <Button variant="outline" onClick={() => setResult(m)}>
-                      Reportar / confirmar resultado
+                      Reportar o confirmar resultado
                     </Button>
                   )}
                 </section>
@@ -622,6 +670,9 @@ export function MyTeam({ slug }: { slug: string }) {
             </div>
             <TeamProfile team={team} action={action} />
             <h2 className="section-title">Solicitar un cambio</h2>
+            <p className="text-sm text-muted-foreground">
+              El organizador revisará tu solicitud; el estado aparecerá abajo.
+            </p>
             <form
               className="panel registration-form"
               onSubmit={async (e) => {
@@ -639,6 +690,7 @@ export function MyTeam({ slug }: { slug: string }) {
                           : {},
                     reason: formValue(d, "reason"),
                   });
+                  toast.success("Solicitud enviada al organizador");
                   e.currentTarget?.reset();
                 } catch {
                 } finally {
@@ -676,7 +728,11 @@ export function MyTeam({ slug }: { slug: string }) {
                 {kind === "description" && (
                   <TextField name="description" label="Descripción pública" />
                 )}
-                <TextField name="reason" label="Motivo (mínimo 5 caracteres)" />
+                <TextField
+                  name="reason"
+                  label="Motivo (mínimo 5 caracteres)"
+                  placeholder="Cuéntale al organizador por qué lo solicitas"
+                />
                 <Submit busy={busy} label="Enviar solicitud al organizador" />
               </FieldGroup>
             </form>

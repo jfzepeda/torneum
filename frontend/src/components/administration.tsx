@@ -2,7 +2,8 @@
 import { PaymentSettings } from "./payments";
 import {ArchiveDetails} from "./archive";
 import { useState } from "react";
-import { Plus, ShieldCheck } from "lucide-react";
+import { Plus, ShieldCheck, Info } from "lucide-react";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import {
   FieldGroup,
@@ -76,7 +77,25 @@ export function Administration({
               <TableRow>
                 <TableHead>Colaborador</TableHead>
                 <TableHead>Correo</TableHead>
-                <TableHead>Rol</TableHead>
+                <TableHead>
+                  <span className="inline-flex items-center gap-1">
+                    Rol
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <span
+                            role="img"
+                            aria-label="Qué puede hacer cada rol"
+                            className="inline-flex"
+                          />
+                        }
+                      >
+                        <Info className="size-3.5" />
+                      </TooltipTrigger>
+                      <TooltipContent>{ROLE_HELP}</TooltipContent>
+                    </Tooltip>
+                  </span>
+                </TableHead>
                 <TableHead>Estado</TableHead>
                 <TableHead>Acceso</TableHead>
               </TableRow>
@@ -89,8 +108,15 @@ export function Administration({
                   </TableCell>
                   <TableCell>{u.email}</TableCell>
                   <TableCell>{labels[u.role]}</TableCell>
-                  <TableCell>{u.active ? "Activo" : "Desactivado"}</TableCell>
+                  <TableCell
+                    className={u.active ? "" : "text-muted-foreground"}
+                  >
+                    {u.active ? "Activo" : "Desactivado"}
+                  </TableCell>
                   <TableCell>
+                    {u.id === actor.id && (
+                      <small className="text-muted-foreground">Tú</small>
+                    )}
                     {u.id !== actor.id && (
                       <Confirm
                         title={
@@ -145,6 +171,7 @@ export function Administration({
                 label="Contraseña inicial (mínimo 12 caracteres)"
                 type="password"
               />
+              <FieldDescription>{ROLE_HELP}</FieldDescription>
               <Choice
                 label="Rol"
                 value={role}
@@ -234,6 +261,9 @@ export function Administration({
               <TextField name="venue" label="Sede" />
               <TextField name="start" label="Fecha de inicio" type="date" />
               <TextField name="end" label="Fecha de cierre" type="date" />
+              <FieldDescription>
+                Esta acción archiva el torneo actual y no se puede deshacer.
+              </FieldDescription>
               <Submit busy={busy} label="Archivar actual y crear torneo" />
             </FieldGroup>
           </form>
@@ -330,6 +360,11 @@ export function Administration({
           <h2>Historial de actividad</h2>
         </div>
         <div className="audit-list">
+          {!state.audit.length && (
+            <p className="text-muted-foreground text-sm">
+              Aún no hay actividad registrada.
+            </p>
+          )}
           {state.audit.map((event) => (
             <div key={event.id}>
               <span className="audit-dot" />
@@ -351,6 +386,8 @@ export function Administration({
     </div>
   );
 }
+const ROLE_HELP =
+  "Visor: solo consulta. Inscripciones: gestiona parejas. Programación: horarios y canchas. Árbitro: registra resultados. Administrador: acceso total.";
 function auditLabel(action: string) {
   return (
     (

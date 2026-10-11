@@ -30,9 +30,9 @@ export function ChatPanel({
       </Alert>
     );
   return (
-    <div>
+    <div aria-label="Asistente del torneo" role="region">
       {error && (
-        <Alert variant="destructive">
+        <Alert variant="destructive" role="alert">
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
@@ -45,10 +45,19 @@ export function ChatPanel({
           <ConnectedChat agent={agent} slug={slug} onError={setError} />
         </>
       ) : (
-        <Button onClick={() => setStarted(true)}>
-          <Sparkles data-icon="inline-start" />
-          Iniciar asistente
-        </Button>
+        <div className="flex flex-col items-start gap-2">
+          <p className="text-sm text-muted-foreground">
+            {agent === "admin"
+              ? "Pregunta por inscripciones, partidos o resultados; las acciones se aplican solo cuando las confirmas."
+              : agent === "sponsors"
+                ? "Consulta el estado de tus patrocinadores y próximos pasos."
+                : "Pregunta por horarios, resultados o grupos del torneo."}
+          </p>
+          <Button onClick={() => setStarted(true)}>
+            <Sparkles data-icon="inline-start" />
+            Iniciar asistente
+          </Button>
+        </div>
       )}
     </div>
   );
@@ -88,5 +97,5 @@ function ConnectedChat({
       },
     },
   });
-  return <><ChatKit control={control} className="h-[550px] w-full"/><Modal title="Revisar acción del asistente" description="Comprueba cada dato. La operación se ejecutará únicamente cuando confirmes." open={!!proposal} onClose={()=>{if(busy)return;resolveTool.current?.({cancelled:true});resolveTool.current=null;setProposal(null);}}><div className="flex flex-col gap-3 text-sm">{proposal?.summary.map((line,i)=><p className="whitespace-pre-wrap" key={i}>{line}</p>)}</div><Button disabled={busy} onClick={async()=>{if(!proposal)return;setBusy(true);try{const result=await mutate('/v1/agent/apply',{proposal_id:proposal.id,confirmed:true});resolveTool.current?.(result);resolveTool.current=null;setProposal(null);}catch(e){onError((e as Error).message);}finally{setBusy(false);}}}>Confirmar acción</Button></Modal></>;
+  return <><ChatKit control={control} aria-label="Conversación con el asistente" className="h-[550px] w-full"/><Modal title="Revisar acción del asistente" description="Comprueba cada dato. La operación se ejecutará únicamente cuando confirmes." open={!!proposal} onClose={()=>{if(busy)return;resolveTool.current?.({cancelled:true});resolveTool.current=null;setProposal(null);}}><div className="flex flex-col gap-3 text-sm">{proposal?.summary.map((line,i)=><p className="whitespace-pre-wrap" key={i}>{line}</p>)}</div><Button disabled={busy} onClick={async()=>{if(!proposal)return;setBusy(true);try{const result=await mutate('/v1/agent/apply',{proposal_id:proposal.id,confirmed:true});resolveTool.current?.(result);resolveTool.current=null;setProposal(null);}catch(e){onError((e as Error).message);}finally{setBusy(false);}}}>Confirmar acción</Button></Modal></>;
 }
