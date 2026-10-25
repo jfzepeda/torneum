@@ -69,7 +69,8 @@ import {
   TableBody,
   TableCell,
 } from "@/components/ui/table";
-import { get, mutate, labels, date, time, client, API } from "@/lib/api";
+import { get, mutate, labels, date, time, place, client, API } from "@/lib/api";
+import { useBrand } from "@/lib/brand";
 import type { State, Actor, Match } from "@/lib/types";
 import {
   Status,
@@ -77,7 +78,6 @@ import {
   Submit,
   EmptyState,
   formValue,
-  venueValue,
 } from "./common";
 import { Operations } from "./operations";
 import { CalendarView } from "./calendar";
@@ -197,6 +197,7 @@ export function Dashboard({ slug }: { slug: string }) {
       throw e;
     }
   };
+  useBrand(state?.organization, !!state?.organization?.brand_platform);
   if (!loaded)
     return (
       <main className="loading-page" aria-busy="true" aria-label="Cargando torneo">
@@ -435,7 +436,7 @@ export function Dashboard({ slug }: { slug: string }) {
           )}
           <footer className="workspace-footer">
             <span>Torneum · Cada partido cuenta.</span>
-            <span>{state.tournament.venue}</span>
+            <span>{place(state.tournament)}</span>
           </footer>
         </main>
       </SidebarInset>
@@ -508,7 +509,8 @@ function InitializeTournament({
           try {
             await action("/v1/tournaments/new", {
               name: formValue(d, "name"),
-              venue: venueValue(d),
+              venue: formValue(d, "venue"),
+              city: formValue(d, "city"),
               starts_on: formValue(d, "starts_on"),
               ends_on: formValue(d, "ends_on"),
             });
@@ -686,7 +688,7 @@ function Overview({ state, go }: ViewProps & { go: (view: string) => void }) {
             </span>
             <span>
               <MapPin size={15} />
-              {t.venue}
+              {place(t)}
             </span>
           </div>
         </div>

@@ -19,8 +19,6 @@ import {
   Trophy,
   ArrowLeft,
   CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
   Clock,
   Users,
   Gift,
@@ -42,11 +40,11 @@ import {
   Submit,
   EmptyState,
   formValue,
-  splitVenue,
 } from "./common";
 import { GroupTables, Bracket, ResultModal } from "./operations";
 import { ChatPanel } from "./chat-panel";
-import { get, mutate, date, time, API } from "@/lib/api";
+import { get, mutate, date, time, place, API } from "@/lib/api";
+import { useBrand } from "@/lib/brand";
 import type { State, Team, Match, Highlight } from "@/lib/types";
 function PublicShell({
   children,
@@ -90,6 +88,7 @@ function PublicShell({
 function usePublic(slug: string) {
   const [state, setState] = useState<State | null>(null),
     [error, setError] = useState("");
+  useBrand(state?.organization);
   const refresh = useCallback(async () => {
     try {
       setState(await get<State>(`/v1/public/${slug}`));
@@ -164,7 +163,7 @@ export function Portal({ slug }: { slug: string }) {
               </span>
               <span>
                 <MapPin size={16} />
-                {t.venue}
+                {place(t)}
               </span>
             </div>
             <Button
@@ -326,16 +325,18 @@ function TournamentDetails({ state }: { state: State }) {
     state.teams.filter((team) => team.category_id === id).length;
   const capacity = state.categories.reduce((n, c) => n + c.capacity, 0);
   const opens = courts.map((c) => c.opens_at).sort()[0];
-  const closes = courts.map((c) => c.closes_at).sort().at(-1);
-  const { club, city } = splitVenue(t.venue);
+  const closes = courts
+    .map((c) => c.closes_at)
+    .sort()
+    .at(-1);
   return (
     <>
       <section className="tournament-details">
         <div>
           <h2>Detalles del torneo</h2>
           <p>
-            {state.categories.length} categorías, {courts.length} canchas y
-            cupo para {capacity} parejas.
+            {state.categories.length} categorías, {courts.length} canchas y cupo
+            para {capacity} parejas.
           </p>
           <div className="detail-grid">
             <div>
@@ -360,14 +361,18 @@ function TournamentDetails({ state }: { state: State }) {
                 <h4>
                   Inscripciones {t.registration_open ? "abiertas" : "cerradas"}
                 </h4>
-                <p>{t.auto_approve ? "Aprobación automática" : "Sujetas a aprobación"}</p>
+                <p>
+                  {t.auto_approve
+                    ? "Aprobación automática"
+                    : "Sujetas a aprobación"}
+                </p>
               </div>
             </div>
             <div>
               <MapPin />
               <div>
-                <h4>{club}</h4>
-                <p>{city || "Sede"}</p>
+                <h4>{t.venue}</h4>
+                <p>{t.city || "Sede"}</p>
               </div>
             </div>
           </div>
@@ -406,7 +411,7 @@ function TournamentDetails({ state }: { state: State }) {
         <h2>Sede</h2>
         <div>
           <iframe
-            src={`https://www.google.com/maps?q=${encodeURIComponent(t.venue)}&output=embed`}
+            src={`https://www.google.com/maps?q=${encodeURIComponent(place(t))}&output=embed`}
             title="Ubicación de la sede"
             loading="lazy"
             referrerPolicy="no-referrer-when-downgrade"
@@ -418,11 +423,11 @@ function TournamentDetails({ state }: { state: State }) {
               <div>
                 <h4>Sede del torneo</h4>
                 <p>
-                  {club}
-                  {city && (
+                  {t.venue}
+                  {t.city && (
                     <>
                       <br />
-                      {city}
+                      {t.city}
                     </>
                   )}
                 </p>
@@ -524,61 +529,105 @@ function PresentedBy({ state }: { state: State }) {
     </section>
   );
 }
+const MARQUEE_SPEED = 56; // px por segundo
 function OfficialSponsors({ state }: { state: State }) {
   const { official } = sponsorTiers(state);
-  const track = useRef<HTMLDivElement>(null),
-    [active, setActive] = useState(0);
-  if (!official.length) return null;
-  const step = () =>
-    (track.current?.firstElementChild as HTMLElement | null)?.offsetWidth ?? 0;
-  const go = (index: number) =>
-    track.current?.scrollTo({
-      left: index * (step() + 16),
-      behavior: "smooth",
-    });
+  const n = official.length;
+  const marquee = useRef<HTMLDivElement>(null);
+  // Arranca en la segunda copia para poder deslizar hacia ambos lados.
+  const copies = Math.max(3, Math.ceil(12 / Math.max(n, 1)) + 1);
+  useEffect(() => {
+    const el = marquee.current;
+    if (!el || !n) return;
+    const loop = () => el.scrollWidth / copies;
+    let pos = loop(),
+      last = performance.now(),
+      idleUntil = 0,
+      hover = false,
+      frame = 0;
+    el.scrollLeft = pos;
+    const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const tick = (now: number) => {
+      const width = loop();
+      // Si el usuario desplazó la cinta, continúa desde donde la dejó.
+      if (Math.abs(el.scrollLeft - pos) > 2) pos = el.scrollLeft;
+      if (!reduced && !hover && now > idleUntil)
+        pos += (MARQUEE_SPEED * Math.min(now - last, 100)) / 1000;
+      // Mantiene la posición dentro de la copia central; las copias son idénticas.
+      if (pos >= 2 * width) pos -= width;
+      else if (pos < width) pos += width;
+      if (Math.abs(el.scrollLeft - pos) >= 0.5) el.scrollLeft = pos;
+      last = now;
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    const touch = () => (idleUntil = performance.now() + 2000);
+    const enter = () => (hover = true),
+      leave = () => (hover = false);
+    // Arrastre con mouse (el táctil y el trackpad usan el scroll nativo).
+    let dragX: number | null = null,
+      moved = 0;
+    const down = (e: PointerEvent) => {
+      touch();
+      if (e.pointerType !== "mouse") return;
+      dragX = e.clientX;
+      moved = 0;
+    };
+    const move = (e: PointerEvent) => {
+      if (dragX === null) return;
+      el.scrollLeft -= e.clientX - dragX;
+      moved += Math.abs(e.clientX - dragX);
+      dragX = e.clientX;
+      touch();
+    };
+    const up = () => (dragX = null);
+    // Un arrastre no debe abrir el enlace del patrocinador.
+    const click = (e: MouseEvent) => {
+      if (moved > 5) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+    el.addEventListener("pointerdown", down);
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    el.addEventListener("click", click, true);
+    el.addEventListener("wheel", touch, { passive: true });
+    el.addEventListener("touchstart", touch, { passive: true });
+    el.addEventListener("touchmove", touch, { passive: true });
+    el.addEventListener("pointerenter", enter);
+    el.addEventListener("pointerleave", leave);
+    return () => {
+      cancelAnimationFrame(frame);
+      el.removeEventListener("pointerdown", down);
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      el.removeEventListener("click", click, true);
+      el.removeEventListener("wheel", touch);
+      el.removeEventListener("touchstart", touch);
+      el.removeEventListener("touchmove", touch);
+      el.removeEventListener("pointerenter", enter);
+      el.removeEventListener("pointerleave", leave);
+    };
+  }, [n, copies]);
+  if (!n) return null;
   return (
     <section className="sponsor-official">
       <SponsorHeading>PATROCINADORES OFICIALES</SponsorHeading>
-      <div className="sponsor-carousel">
-        <Button
-          variant="outline"
-          size="icon"
-          aria-label="Anterior"
-          onClick={() => go(Math.max(active - 1, 0))}
-        >
-          <ChevronLeft />
-        </Button>
-        <div
-          className="sponsor-track"
-          ref={track}
-          onScroll={(e) =>
-            setActive(Math.round(e.currentTarget.scrollLeft / (step() + 16)))
-          }
-        >
-          {official.map((s) => (
-            <div className="sponsor-card" key={s.id}>
-              <SponsorLogo sponsor={s} height={110} />
-            </div>
-          ))}
+      <div className="sponsor-marquee" ref={marquee}>
+        <div className="sponsor-track">
+          {Array.from({ length: copies }, (_, c) =>
+            official.map((s) => (
+              <div
+                className="sponsor-card"
+                key={`${c}-${s.id}`}
+                aria-hidden={c !== 1 || undefined}
+              >
+                <SponsorLogo sponsor={s} height={150} />
+              </div>
+            )),
+          )}
         </div>
-        <Button
-          variant="outline"
-          size="icon"
-          aria-label="Siguiente"
-          onClick={() => go(Math.min(active + 1, official.length - 1))}
-        >
-          <ChevronRight />
-        </Button>
-      </div>
-      <div className="sponsor-dots">
-        {official.map((s, i) => (
-          <button
-            key={s.id}
-            aria-label={`Ir a ${s.name}`}
-            data-active={i === active}
-            onClick={() => go(i)}
-          />
-        ))}
       </div>
     </section>
   );

@@ -27,14 +27,133 @@ import {
   Submit,
   Choice,
   Confirm,
-  venueValue,
-  splitVenue,
   EmptyState,
   Status,
   formValue,
 } from "./common";
 import type { ViewProps } from "./dashboard";
 import { date, labels } from "@/lib/api";
+function BrandSettings({
+  state,
+  action,
+}: Pick<ViewProps, "state" | "action">) {
+  const org = state.organization;
+  const [color, setColor] = useState(org.brand_color || "#24724b"),
+    [bg, setBg] = useState(org.brand_bg || ""),
+    [card, setCard] = useState(org.brand_card || ""),
+    [platform, setPlatform] = useState(!!org.brand_platform),
+    [busy, setBusy] = useState(false);
+  const save = async (
+    brand_color: string | null,
+    brand_bg: string | null,
+    brand_card: string | null,
+  ) => {
+    setBusy(true);
+    try {
+      await action("/v1/branding", {
+        brand_color,
+        brand_bg,
+        brand_card,
+        brand_platform: platform,
+      });
+    } catch {
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="panel settings-form">
+      <div className="panel-heading">
+        <div>
+          <h2>Colores del club</h2>
+          <p>Se aplica al portal público del torneo.</p>
+        </div>
+      </div>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          void save(color, bg || null, card || null);
+        }}
+      >
+        <FieldGroup>
+          <Field orientation="horizontal">
+            <div>
+              <FieldLabel htmlFor="brand-color">Color principal</FieldLabel>
+              <FieldDescription>
+                {org.brand_color ? color : "Usando el verde de Torneum."}
+              </FieldDescription>
+            </div>
+            <input
+              id="brand-color"
+              type="color"
+              className="brand-swatch"
+              value={color}
+              onChange={(e) => setColor(e.target.value)}
+            />
+          </Field>
+          <Field orientation="horizontal">
+            <div>
+              <FieldLabel htmlFor="brand-bg">Color de fondo</FieldLabel>
+              <FieldDescription>
+                {bg || "Usando el fondo de Torneum."} Solo en modo claro.
+              </FieldDescription>
+            </div>
+            <input
+              id="brand-bg"
+              type="color"
+              className="brand-swatch"
+              value={bg || "#fafbf9"}
+              onChange={(e) => setBg(e.target.value)}
+            />
+          </Field>
+          <Field orientation="horizontal">
+            <div>
+              <FieldLabel htmlFor="brand-card">Color de tarjetas</FieldLabel>
+              <FieldDescription>
+                {card || "Usando blanco."} Solo en modo claro.
+              </FieldDescription>
+            </div>
+            <input
+              id="brand-card"
+              type="color"
+              className="brand-swatch"
+              value={card || "#ffffff"}
+              onChange={(e) => setCard(e.target.value)}
+            />
+          </Field>
+          <Field orientation="horizontal">
+            <div>
+              <FieldLabel htmlFor="brand-platform">
+                Aplicar también a plataforma
+              </FieldLabel>
+              <FieldDescription>
+                Usa el color en este panel de organizador.
+              </FieldDescription>
+            </div>
+            <Switch
+              id="brand-platform"
+              checked={platform}
+              onCheckedChange={setPlatform}
+            />
+          </Field>
+          <div className="flex gap-2">
+            <Submit busy={busy} />
+            {(org.brand_color || org.brand_bg || org.brand_card) && (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={busy}
+                onClick={() => void save(null, null, null)}
+              >
+                Restablecer
+              </Button>
+            )}
+          </div>
+        </FieldGroup>
+      </form>
+    </section>
+  );
+}
 const highlightIcons = [
   { value: "trophy", label: "Trofeo" },
   { value: "gift", label: "Regalo" },
@@ -257,7 +376,8 @@ export function Administration({
               try {
                 await action("/v1/tournaments/new", {
                   name: formValue(d, "name"),
-                  venue: venueValue(d),
+                  venue: formValue(d, "venue"),
+                  city: formValue(d, "city"),
                   starts_on: formValue(d, "start"),
                   ends_on: formValue(d, "end"),
                   archive_current: true,
@@ -287,6 +407,7 @@ export function Administration({
   return (
     <div className="settings-layout">
       <PaymentSettings state={state}/>
+      <BrandSettings state={state} action={action} />
       <section className="panel settings-form">
         <div className="panel-heading">
           <div>
@@ -302,7 +423,8 @@ export function Administration({
             try {
               await action("/v1/settings", {
                 name: formValue(d, "name"),
-                venue: venueValue(d),
+                venue: formValue(d, "venue"),
+                city: formValue(d, "city"),
                 starts_on: formValue(d, "start"),
                 ends_on: formValue(d, "end"),
                 auto_approve: auto,
@@ -331,13 +453,13 @@ export function Administration({
               <TextField
                 label="Club / Sede"
                 name="venue"
-                defaultValue={splitVenue(t.venue).club}
+                defaultValue={t.venue}
               />
               <TextField
                 label="Ciudad"
                 name="city"
                 required={false}
-                defaultValue={splitVenue(t.venue).city}
+                defaultValue={t.city}
               />
             </FieldGroup>
             <FieldGroup className="grid grid-cols-2 gap-4">
@@ -462,6 +584,7 @@ function auditLabel(action: string) {
         "registration.review": "Inscripción revisada",
         "category.create": "Categoría creada",
         "tournament.update": "Torneo actualizado",
+        "organization.branding": "Color del club actualizado",
         "registration.create": "Pareja registrada",
         "request.review": "Solicitud resuelta",
         "sponsor.save": "Patrocinador actualizado",

@@ -60,7 +60,7 @@ export async function seed(demo = false) {
     };
     const t = (
       await db.query(
-        "INSERT INTO tournaments(organization_id,name,venue,starts_on,ends_on) VALUES($1,$2,'Club de Pádel · Ciudad de México','2026-09-18','2026-09-20') RETURNING id",
+        "INSERT INTO tournaments(organization_id,name,venue,city,starts_on,ends_on) VALUES($1,$2,'Club de Pádel','Ciudad de México','2026-09-18','2026-09-20') RETURNING id",
         [org.id, demo ? "Copa Torneum 2026" : "Mi primer torneo"],
       )
     ).rows[0];

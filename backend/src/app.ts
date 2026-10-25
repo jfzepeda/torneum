@@ -861,6 +861,7 @@ export async function buildApp() {
     z.object({
       name: short,
       venue: short,
+      city: z.string().trim().max(150).default(""),
       starts_on: z.iso.date(),
       ends_on: z.iso.date(),
       auto_approve: z.boolean(),
@@ -892,7 +893,7 @@ export async function buildApp() {
         "Desprograma los partidos antes de cambiar las fechas.",
       );
       await db.query(
-        "UPDATE tournaments SET name=$2,venue=$3,starts_on=$4,ends_on=$5,auto_approve=$6,registration_open=$7,highlights=$8 WHERE id=$1",
+        "UPDATE tournaments SET name=$2,venue=$3,starts_on=$4,ends_on=$5,auto_approve=$6,registration_open=$7,highlights=$8,city=$9 WHERE id=$1",
         [
           t.id,
           b.name,
@@ -902,6 +903,7 @@ export async function buildApp() {
           b.auto_approve,
           b.registration_open,
           JSON.stringify(b.highlights),
+          b.city,
         ],
       );
       await audit(
@@ -917,10 +919,63 @@ export async function buildApp() {
     },
   );
   post(
+    "/v1/branding",
+    z.object({
+      brand_color: z
+        .string()
+        .regex(/^#[0-9a-fA-F]{6}$/)
+        .transform((c) => c.toLowerCase())
+        .nullable(),
+      brand_bg: z
+        .string()
+        .regex(/^#[0-9a-fA-F]{6}$/)
+        .transform((c) => c.toLowerCase())
+        .nullable()
+        .default(null),
+      brand_card: z
+        .string()
+        .regex(/^#[0-9a-fA-F]{6}$/)
+        .transform((c) => c.toLowerCase())
+        .nullable()
+        .default(null),
+      brand_platform: z.boolean(),
+    }),
+    "admin",
+    async (b, a, db) => {
+      const old = (
+        await db.query(
+          "SELECT brand_color,brand_bg,brand_card,brand_platform FROM organizations WHERE id=$1",
+          [a!.organization_id],
+        )
+      ).rows[0];
+      await db.query(
+        "UPDATE organizations SET brand_color=$2,brand_platform=$3,brand_bg=$4,brand_card=$5 WHERE id=$1",
+        [
+          a!.organization_id,
+          b.brand_color,
+          b.brand_platform,
+          b.brand_bg,
+          b.brand_card,
+        ],
+      );
+      await audit(
+        db,
+        a!.organization_id,
+        a!.id,
+        "organization.branding",
+        a!.organization_id,
+        old,
+        b,
+      );
+      return { ok: true };
+    },
+  );
+  post(
     "/v1/tournaments/new",
     z.object({
       name: short,
       venue: short,
+      city: z.string().trim().max(150).default(""),
       starts_on: z.iso.date(),
       ends_on: z.iso.date(),
       archive_current: z.literal(true),
@@ -943,8 +998,8 @@ export async function buildApp() {
       );
       const t = (
         await db.query(
-          "INSERT INTO tournaments(organization_id,name,venue,starts_on,ends_on) VALUES($1,$2,$3,$4,$5) RETURNING id",
-          [a!.organization_id, b.name, b.venue, b.starts_on, b.ends_on],
+          "INSERT INTO tournaments(organization_id,name,venue,city,starts_on,ends_on) VALUES($1,$2,$3,$4,$5,$6) RETURNING id",
+          [a!.organization_id, b.name, b.venue, b.city, b.starts_on, b.ends_on],
         )
       ).rows[0];
       await audit(

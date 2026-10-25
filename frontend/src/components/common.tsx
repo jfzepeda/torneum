@@ -313,12 +313,3 @@ export function Submit({
 }
 export const formValue = (data: FormData, name: string) =>
   String(data.get(name) || "");
-// La sede se guarda como un solo texto: "Club · Ciudad".
-export const venueValue = (data: FormData) =>
-  [formValue(data, "venue").trim(), formValue(data, "city").trim()]
-    .filter(Boolean)
-    .join(" · ");
-export const splitVenue = (venue: string) => {
-  const [club, ...city] = venue.split(" · ");
-  return { club, city: city.join(" · ") };
-};

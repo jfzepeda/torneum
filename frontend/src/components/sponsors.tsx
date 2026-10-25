@@ -31,7 +31,7 @@ import {
 import { ChatPanel } from "./chat-panel";
 import type { ViewProps } from "./dashboard";
 import type { Sponsor, Message } from "@/lib/types";
-import { labels } from "@/lib/api";
+import { labels, place } from "@/lib/api";
 function Tip({ text, children }: { text: string; children: React.ReactNode }) {
   return (
     <Tooltip>
@@ -546,7 +546,7 @@ export function Sponsors({ state, actor, action }: ViewProps) {
                   name="body"
                   rows={9}
                   required
-                  defaultValue={`Hola, equipo de ${proposal.name}:\n\nLes invitamos a formar parte de ${state.tournament!.name}, que se realizará en ${state.tournament!.venue}.\n\nNos gustaría presentarles el paquete ${state.levels.find((l) => l.id === proposal.level_id)?.name || "de patrocinio que mejor se adapte a sus objetivos"}. ${state.levels.find((l) => l.id === proposal.level_id)?.benefits || ""}\n\n¿Podemos compartirles los detalles?\n\n${actor.name}\nOrganización del torneo`}
+                  defaultValue={`Hola, equipo de ${proposal.name}:\n\nLes invitamos a formar parte de ${state.tournament!.name}, que se realizará en ${place(state.tournament!)}.\n\nNos gustaría presentarles el paquete ${state.levels.find((l) => l.id === proposal.level_id)?.name || "de patrocinio que mejor se adapte a sus objetivos"}. ${state.levels.find((l) => l.id === proposal.level_id)?.benefits || ""}\n\n¿Podemos compartirles los detalles?\n\n${actor.name}\nOrganización del torneo`}
                 />
               </Field>
               <Choice

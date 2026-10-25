@@ -37,6 +37,8 @@ export async function mutate(
     throw new Error(result.error?.message || "No se pudo guardar el cambio.");
   return result;
 }
+export const place = (t: { venue: string; city?: string }) =>
+  [t.venue, t.city].filter(Boolean).join(", ");
 export const date = (
   value: string,
   options: Intl.DateTimeFormatOptions = { day: "numeric", month: "short" },

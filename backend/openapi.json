@@ -1365,6 +1365,11 @@
                     "minLength": 1,
                     "maxLength": 150
                   },
+                  "city": {
+                    "default": "",
+                    "type": "string",
+                    "maxLength": 150
+                  },
                   "starts_on": {
                     "type": "string",
                     "format": "date",
@@ -1444,6 +1449,57 @@
         }
       }
     },
+    "/v1/branding": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brand_color": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-fA-F]{6}$",
+                    "nullable": true
+                  },
+                  "brand_bg": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-fA-F]{6}$",
+                    "nullable": true
+                  },
+                  "brand_card": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-fA-F]{6}$",
+                    "nullable": true
+                  },
+                  "brand_platform": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "brand_color",
+                  "brand_platform"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/tournaments/new": {
       "post": {
         "requestBody": {
@@ -1461,6 +1517,11 @@
                   "venue": {
                     "type": "string",
                     "minLength": 1,
+                    "maxLength": 150
+                  },
+                  "city": {
+                    "default": "",
+                    "type": "string",
                     "maxLength": 150
                   },
                   "starts_on": {

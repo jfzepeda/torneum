@@ -120,11 +120,20 @@ export type Standing = {
   tie: boolean;
 };
 export type State = {
-  organization: { id: string; name: string; slug: string };
+  organization: {
+    id: string;
+    name: string;
+    slug: string;
+    brand_color?: string | null;
+    brand_bg?: string | null;
+    brand_card?: string | null;
+    brand_platform?: boolean;
+  };
   tournament: {
     id: string;
     name: string;
     venue: string;
+    city: string;
     starts_on: string;
     ends_on: string;
     timezone: string;

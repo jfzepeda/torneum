@@ -197,6 +197,85 @@
   --info: #b2d0e0;
   --info-bg: #283c48;
 }
+/* Color del club: se activa con data-brand en <html> (ver lib/brand.ts). */
+html[data-brand] {
+  --primary: var(--brand);
+  --primary-foreground: var(--brand-fg);
+  --accent: color-mix(in oklab, var(--brand) 12%, var(--background));
+  --accent-foreground: color-mix(in oklab, var(--brand) 75%, black);
+  --ring: color-mix(in oklab, var(--brand) 55%, white);
+  --sidebar-primary: var(--brand);
+  --sidebar-primary-foreground: var(--brand-fg);
+  --sidebar-accent: color-mix(in oklab, var(--brand) 12%, var(--sidebar));
+  --sidebar-accent-foreground: color-mix(in oklab, var(--brand) 75%, black);
+  --court-line: color-mix(in oklab, var(--brand) 40%, white);
+}
+html.dark[data-brand] {
+  --primary: color-mix(in oklab, var(--brand) 55%, white);
+  --primary-foreground: color-mix(in oklab, var(--brand) 25%, black);
+  --accent: color-mix(in oklab, var(--brand) 25%, var(--background));
+  --accent-foreground: color-mix(in oklab, var(--brand) 35%, white);
+  --ring: color-mix(in oklab, var(--brand) 55%, white);
+  --sidebar-primary: color-mix(in oklab, var(--brand) 55%, white);
+  --sidebar-primary-foreground: color-mix(in oklab, var(--brand) 25%, black);
+  --sidebar-accent: color-mix(in oklab, var(--brand) 25%, var(--sidebar));
+  --sidebar-accent-foreground: color-mix(in oklab, var(--brand) 35%, white);
+  --court-line: color-mix(in oklab, var(--brand) 40%, var(--background));
+}
+/* Fondo del club (solo modo claro); con fondo oscuro se invierten texto y superficies. */
+html[data-brand-bg]:not(.dark) {
+  --background: var(--brand-bg);
+  --muted: color-mix(in oklab, var(--brand-bg) 94%, var(--foreground));
+  --secondary: color-mix(in oklab, var(--brand-bg) 92%, var(--foreground));
+  --border: color-mix(in oklab, var(--brand-bg) 86%, var(--foreground));
+  --input: color-mix(in oklab, var(--brand-bg) 80%, var(--foreground));
+  --sidebar: color-mix(in oklab, var(--brand-bg) 96%, var(--foreground));
+  --sidebar-border: var(--border);
+}
+html[data-brand-bg="dark"]:not(.dark) {
+  --foreground: #eef1ef;
+  --card: color-mix(in oklab, var(--brand-bg) 90%, white);
+  --card-foreground: #eef1ef;
+  --popover: color-mix(in oklab, var(--brand-bg) 85%, white);
+  --popover-foreground: #eef1ef;
+  --secondary-foreground: #d7dcd9;
+  --muted-foreground: #a9b1ac;
+  --sidebar-foreground: #c8cfcb;
+  --accent-foreground: color-mix(in oklab, var(--primary) 40%, white);
+  --sidebar-accent-foreground: var(--accent-foreground);
+}
+/* Tarjetas del club (solo modo claro); con tarjeta oscura se aclara el texto dentro. */
+html[data-brand-card]:not(.dark) {
+  --card: var(--brand-card);
+  --popover: var(--brand-card);
+}
+html[data-brand-card="dark"]:not(.dark) {
+  --card-foreground: #eef1ef;
+  --popover-foreground: #eef1ef;
+}
+html[data-brand-card="light"]:not(.dark) {
+  --card-foreground: #202722;
+  --popover-foreground: #202722;
+}
+html[data-brand-card="dark"]:not(.dark) :is(.panel, [data-slot="card"]) {
+  --foreground: #eef1ef;
+  --muted-foreground: #a9b1ac;
+  color: var(--card-foreground);
+}
+html[data-brand-card="light"]:not(.dark) :is(.panel, [data-slot="card"]) {
+  --foreground: #202722;
+  --muted-foreground: #6d776f;
+  color: var(--card-foreground);
+}
+.brand-swatch {
+  width: 44px;
+  height: 32px;
+  padding: 2px;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  cursor: pointer;
+}
 body {
   margin: 0;
   font-size: 14px;
@@ -1860,50 +1939,61 @@ button.metric:hover {
   }
 }
 .sponsor-official {
-  background: var(--muted);
   border-radius: 12px;
   padding: 28px 18px 20px;
   margin-bottom: 35px;
 }
-.sponsor-carousel {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.sponsor-track {
-  flex: 1;
-  display: flex;
-  gap: 12;
+.sponsor-marquee {
   overflow-x: auto;
-  scroll-snap-type: x mandatory;
   scrollbar-width: none;
+  cursor: grab;
+  user-select: none;
+  /* espacio para que el overflow no recorte la sombra de las tarjetas */
+  padding: 10px 0 18px;
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 6%,
+    #000 94%,
+    transparent
+  );
 }
-.sponsor-track::-webkit-scrollbar {
+.sponsor-marquee::-webkit-scrollbar {
   display: none;
 }
+.sponsor-marquee:active {
+  cursor: grabbing;
+}
+.sponsor-marquee img {
+  -webkit-user-drag: none;
+}
+/* La cinta la mueve JS (OfficialSponsors) para que también se pueda deslizar. */
+.sponsor-track {
+  display: flex;
+  width: max-content;
+}
 .sponsor-card {
-  flex: 0 0 180px;
-  height: 110px;
+  flex: 0 0 200px;
+  height: 150px;
+  /* margen en vez de gap para que cada copia mida exactamente lo mismo */
+  margin-right: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
-  scroll-snap-align: start;
   border-radius: 10px;
+  background: var(--card);
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.06),
+    0 6px 16px rgb(0 0 0 / 0.08);
+  transition:
+    transform 0.2s,
+    box-shadow 0.2s;
 }
-.sponsor-dots {
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-  margin-top: 16px;
-}
-.sponsor-dots button {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--border);
-}
-.sponsor-dots button[data-active="true"] {
-  background: var(--primary);
+.sponsor-card:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 2px 4px rgb(0 0 0 / 0.08),
+    0 10px 24px rgb(0 0 0 / 0.12);
 }
 .sponsor-support {
   border-top: 1px solid var(--border);
