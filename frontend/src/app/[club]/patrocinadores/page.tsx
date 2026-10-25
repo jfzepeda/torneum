@@ -1,4 +1,4 @@
-import { SponsorsPage } from "@/components/public";
+import { SponsorsPage } from "@/components/sponsors-public";
 export default async function Page({
   params,
 }: {

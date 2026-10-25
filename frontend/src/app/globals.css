@@ -1785,6 +1785,11 @@ button.metric:hover {
   object-fit: cover;
   border-radius: var(--radius-lg);
 }
+.sponsor-logo-free {
+  min-width: 0;
+  max-width: none;
+  object-fit: contain;
+}
 .sponsor-logo-text {
   display: flex;
   align-items: center;
@@ -1797,13 +1802,13 @@ button.metric:hover {
   overflow: hidden;
 }
 .sponsor-presented {
-  padding: 15px 0 35px;
+  padding: 15px 0 0;
 }
 .tournament-details,
 .tournament-venue {
   min-height: 60vh;
   margin-bottom: 35px;
-  padding: 45px 0;
+  padding: 25px 0;
 }
 .tournament-details {
   display: grid;
@@ -1848,7 +1853,10 @@ button.metric:hover {
 .detail-categories {
   background: var(--accent);
   border-radius: var(--radius-lg);
-  padding: 12px 28px;
+  min-height: 220px;
+  padding: 12px 28px 24px;
+  display: flex;
+  flex-direction: column;
 }
 .detail-categories li {
   display: flex;
@@ -1870,6 +1878,10 @@ button.metric:hover {
 }
 .detail-categories b {
   color: var(--accent-foreground);
+}
+.detail-register {
+  align-self: flex-end;
+  margin-top: auto;
 }
 .detail-highlights {
   grid-column: 1 / -1;
