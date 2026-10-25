@@ -88,6 +88,7 @@ function setSession(reply: FastifyReply, token: string) {
 }
 export async function buildApp() {
   const app = Fastify({
+    trustProxy: process.env.TRUST_PROXY === "true" ? 1 : false,
     logger:
       process.env.NODE_ENV !== "test"
         ? {
