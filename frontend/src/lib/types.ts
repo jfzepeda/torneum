@@ -68,6 +68,11 @@ export type Match = {
   winner_id: string | null;
   score: { sets: [number, number][]; reason?: string } | null;
 };
+export type Highlight = {
+  icon: "trophy" | "gift" | "target" | "star" | "award" | "users";
+  title: string;
+  text: string;
+};
 export type Court = {
   id: string;
   name: string;
@@ -126,6 +131,7 @@ export type State = {
     auto_approve: boolean;
     registration_open: boolean;
     registration_schema?: RegistrationSchema;
+    highlights?: Highlight[];
     status: string;
   } | null;
   categories: Category[];

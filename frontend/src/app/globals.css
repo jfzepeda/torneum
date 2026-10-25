@@ -1720,46 +1720,144 @@ button.metric:hover {
 .sponsor-presented {
   padding: 15px 0 35px;
 }
+.tournament-details,
+.tournament-venue {
+  min-height: 60vh;
+  margin-bottom: 35px;
+  padding: 45px 0;
+}
 .tournament-details {
   display: grid;
-  gap: 16px;
-  margin-bottom: 35px;
-}
-.tournament-details .panel {
-  min-height: 60vh;
-  padding: 45px;
-}
-.tournament-details h2 {
-  display: flex;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 48px;
   align-items: center;
-  gap: 8px;
-  font-size: 16px;
-  font-weight: 600;
-  margin-bottom: 14px;
 }
-.tournament-details dl {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 6px 16px;
-  font-size: 14px;
+.tournament-details h2,
+.tournament-venue h2 {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--primary);
+  margin-bottom: 16px;
 }
-.tournament-details dt {
+.tournament-details > div > p {
   color: var(--muted-foreground);
 }
-.tournament-details ul {
-  border-top: 1px solid var(--border);
-  margin-top: 14px;
-  padding-top: 10px;
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
+  margin-top: 32px;
 }
-.tournament-details li {
+.detail-grid > div,
+.venue-card > div {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.detail-grid svg {
+  flex-shrink: 0;
+  color: var(--primary);
+}
+.detail-grid h4,
+.venue-card h4 {
+  font-weight: 600;
+}
+.detail-grid p {
+  font-size: 14px;
+  color: var(--muted-foreground);
+}
+.detail-categories {
+  background: var(--accent);
+  border-radius: var(--radius-lg);
+  padding: 12px 28px;
+}
+.detail-categories li {
   display: flex;
   justify-content: space-between;
-  gap: 12px;
-  padding: 6px 0;
-  font-size: 14px;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 0;
 }
-.tournament-details li span {
+.detail-categories li + li {
+  border-top: 1px solid var(--border);
+}
+.detail-categories strong {
+  display: block;
+  font-size: 18px;
+}
+.detail-categories span {
+  font-size: 14px;
   color: var(--muted-foreground);
+}
+.detail-categories b {
+  color: var(--accent-foreground);
+}
+.detail-highlights {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 24px;
+}
+.detail-highlights > div {
+  background: var(--accent);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+}
+.detail-highlights h3 {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--primary);
+  margin-bottom: 12px;
+}
+.detail-highlights svg {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+}
+.detail-highlights p {
+  color: var(--muted-foreground);
+}
+.tournament-venue > div {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 32px;
+}
+.tournament-venue iframe {
+  width: 100%;
+  height: 100%;
+  min-height: 400px;
+  border: 0;
+  border-radius: var(--radius-lg);
+}
+.venue-card {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-radius: var(--radius-lg);
+  padding: 32px;
+}
+.venue-card h3 {
+  font-size: 22px;
+  font-weight: 600;
+}
+.venue-card svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.venue-card p {
+  opacity: 0.8;
+}
+@media (max-width: 800px) {
+  .tournament-details,
+  .tournament-venue > div {
+    grid-template-columns: 1fr;
+  }
 }
 .sponsor-official {
   background: var(--muted);

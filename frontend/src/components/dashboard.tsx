@@ -71,7 +71,14 @@ import {
 } from "@/components/ui/table";
 import { get, mutate, labels, date, time, client, API } from "@/lib/api";
 import type { State, Actor, Match } from "@/lib/types";
-import { Status, TextField, Submit, EmptyState, formValue } from "./common";
+import {
+  Status,
+  TextField,
+  Submit,
+  EmptyState,
+  formValue,
+  venueValue,
+} from "./common";
 import { Operations } from "./operations";
 import { CalendarView } from "./calendar";
 import { Sponsors } from "./sponsors";
@@ -501,7 +508,7 @@ function InitializeTournament({
           try {
             await action("/v1/tournaments/new", {
               name: formValue(d, "name"),
-              venue: formValue(d, "venue"),
+              venue: venueValue(d),
               starts_on: formValue(d, "starts_on"),
               ends_on: formValue(d, "ends_on"),
             });
@@ -521,6 +528,7 @@ function InitializeTournament({
             name="venue"
             defaultValue={orgName || "Club Deportivo"}
           />
+          <TextField label="Ciudad" name="city" required={false} />
           <div className="grid grid-cols-2 gap-3">
             <TextField
               label="Fecha de inicio"

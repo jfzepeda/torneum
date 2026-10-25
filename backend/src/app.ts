@@ -865,6 +865,16 @@ export async function buildApp() {
       ends_on: z.iso.date(),
       auto_approve: z.boolean(),
       registration_open: z.boolean(),
+      highlights: z
+        .array(
+          z.object({
+            icon: z.enum(["trophy", "gift", "target", "star", "award", "users"]),
+            title: short,
+            text: z.string().trim().max(200),
+          }),
+        )
+        .max(3)
+        .default([]),
     }),
     "admin",
     async (b, a, db) => {
@@ -882,7 +892,7 @@ export async function buildApp() {
         "Desprograma los partidos antes de cambiar las fechas.",
       );
       await db.query(
-        "UPDATE tournaments SET name=$2,venue=$3,starts_on=$4,ends_on=$5,auto_approve=$6,registration_open=$7 WHERE id=$1",
+        "UPDATE tournaments SET name=$2,venue=$3,starts_on=$4,ends_on=$5,auto_approve=$6,registration_open=$7,highlights=$8 WHERE id=$1",
         [
           t.id,
           b.name,
@@ -891,6 +901,7 @@ export async function buildApp() {
           b.ends_on,
           b.auto_approve,
           b.registration_open,
+          JSON.stringify(b.highlights),
         ],
       );
       await audit(

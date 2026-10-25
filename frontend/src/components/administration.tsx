@@ -27,12 +27,22 @@ import {
   Submit,
   Choice,
   Confirm,
+  venueValue,
+  splitVenue,
   EmptyState,
   Status,
   formValue,
 } from "./common";
 import type { ViewProps } from "./dashboard";
 import { date, labels } from "@/lib/api";
+const highlightIcons = [
+  { value: "trophy", label: "Trofeo" },
+  { value: "gift", label: "Regalo" },
+  { value: "target", label: "Objetivo" },
+  { value: "star", label: "Estrella" },
+  { value: "award", label: "Medalla" },
+  { value: "users", label: "Jugadores" },
+];
 export function Administration({
   state,
   actor,
@@ -45,6 +55,9 @@ export function Administration({
     [auto, setAuto] = useState(state.tournament!.auto_approve),
     [registration, setRegistration] = useState(
       state.tournament!.registration_open,
+    ),
+    [icons, setIcons] = useState(() =>
+      [0, 1, 2].map((i) => state.tournament!.highlights?.[i]?.icon || "trophy"),
     );
   const admin = actor.role === "admin";
   const t = state.tournament!;
@@ -244,7 +257,7 @@ export function Administration({
               try {
                 await action("/v1/tournaments/new", {
                   name: formValue(d, "name"),
-                  venue: formValue(d, "venue"),
+                  venue: venueValue(d),
                   starts_on: formValue(d, "start"),
                   ends_on: formValue(d, "end"),
                   archive_current: true,
@@ -258,7 +271,8 @@ export function Administration({
           >
             <FieldGroup>
               <TextField name="name" label="Nombre del siguiente torneo" />
-              <TextField name="venue" label="Sede" />
+              <TextField name="venue" label="Club / Sede" />
+              <TextField name="city" label="Ciudad" required={false} />
               <TextField name="start" label="Fecha de inicio" type="date" />
               <TextField name="end" label="Fecha de cierre" type="date" />
               <FieldDescription>
@@ -288,11 +302,18 @@ export function Administration({
             try {
               await action("/v1/settings", {
                 name: formValue(d, "name"),
-                venue: formValue(d, "venue"),
+                venue: venueValue(d),
                 starts_on: formValue(d, "start"),
                 ends_on: formValue(d, "end"),
                 auto_approve: auto,
                 registration_open: registration,
+                highlights: icons
+                  .map((icon, i) => ({
+                    icon,
+                    title: formValue(d, `highlight-title-${i}`),
+                    text: formValue(d, `highlight-text-${i}`),
+                  }))
+                  .filter((h) => h.title),
               });
             } catch {
             } finally {
@@ -306,7 +327,19 @@ export function Administration({
               name="name"
               defaultValue={t.name}
             />
-            <TextField label="Sede" name="venue" defaultValue={t.venue} />
+            <FieldGroup className="grid grid-cols-2 gap-4">
+              <TextField
+                label="Club / Sede"
+                name="venue"
+                defaultValue={splitVenue(t.venue).club}
+              />
+              <TextField
+                label="Ciudad"
+                name="city"
+                required={false}
+                defaultValue={splitVenue(t.venue).city}
+              />
+            </FieldGroup>
             <FieldGroup className="grid grid-cols-2 gap-4">
               <TextField
                 label="Fecha de inicio"
@@ -351,6 +384,36 @@ export function Administration({
                 onCheckedChange={setAuto}
               />
             </Field>
+            <FieldDescription>
+              Destacados del portal (premios, kit, formato…). Deja el título
+              vacío para ocultar una tarjeta.
+            </FieldDescription>
+            {icons.map((icon, i) => (
+              <FieldGroup key={i} className="grid grid-cols-[10rem_1fr] gap-4">
+                <Choice
+                  label={`Ícono ${i + 1}`}
+                  value={icon}
+                  onChange={(v) =>
+                    setIcons(icons.map((x, j) => (j === i ? (v as typeof x) : x)))
+                  }
+                  options={highlightIcons}
+                />
+                <TextField
+                  label={`Título ${i + 1}`}
+                  name={`highlight-title-${i}`}
+                  required={false}
+                  defaultValue={t.highlights?.[i]?.title}
+                />
+                <div className="col-span-2">
+                  <TextField
+                    label={`Descripción ${i + 1}`}
+                    name={`highlight-text-${i}`}
+                    required={false}
+                    defaultValue={t.highlights?.[i]?.text}
+                  />
+                </div>
+              </FieldGroup>
+            ))}
             <Submit busy={busy} />
           </FieldGroup>
         </form>
