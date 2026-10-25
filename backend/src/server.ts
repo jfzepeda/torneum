@@ -10,23 +10,24 @@ await app.listen({
   port: Number(process.env.PORT || 4000),
   host: process.env.HOST || "127.0.0.1",
 });
+const backgroundWorkersEnabled = process.env.BACKGROUND_WORKERS_ENABLED !== "false";
 const worker =
-  process.env.OUTBOX_ENABLED === "true"
+  backgroundWorkersEnabled && process.env.OUTBOX_ENABLED === "true"
     ? setInterval(
         () => processOutbox().catch((error) => app.log.error(error)),
         15000,
       )
     : undefined;
-const googleWorker = setInterval(() => { void syncDueIntegrations().catch(error => app.log.error(error)); }, 30000);
-const paymentsWorker = setInterval(() => {
+const googleWorker = backgroundWorkersEnabled ? setInterval(() => { void syncDueIntegrations().catch(error => app.log.error(error)); }, 30000) : undefined;
+const paymentsWorker = backgroundWorkersEnabled ? setInterval(() => {
   void sendVerificationOutbox().catch(error => app.log.error(error));
   void reconcilePayments().catch(error => app.log.error(error));
   void sendRegistrationNotifications().catch(error => app.log.error(error));
-}, 15000);
+}, 15000) : undefined;
 for (const signal of ["SIGINT", "SIGTERM"])
   process.on(signal, async () => {
-    clearInterval(paymentsWorker);
-    clearInterval(googleWorker);
+    if (paymentsWorker) clearInterval(paymentsWorker);
+    if (googleWorker) clearInterval(googleWorker);
     if (worker) clearInterval(worker);
     await app.close();
     await pool.end();
