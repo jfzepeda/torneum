@@ -1115,17 +1115,27 @@ async function registerCommercial(post: Post, app: FastifyInstance) {
   });
   post("/v1/sponsors", sponsorInput, "admin", async (b, a, db) => {
     const t = await active(db, a!);
-    if (b.level_id)
-      ensure(
-        (
-          await db.query(
-            "SELECT 1 FROM sponsor_levels WHERE id=$1 AND tournament_id=$2",
-            [b.level_id, t.id],
-          )
-        ).rowCount,
-        "Nivel inválido.",
-        400,
-      );
+    if (b.level_id) {
+      const level = (
+        await db.query(
+          "SELECT priority FROM sponsor_levels WHERE id=$1 AND tournament_id=$2",
+          [b.level_id, t.id],
+        )
+      ).rows[0];
+      ensure(level, "Nivel inválido.", 400);
+      // El portal solo tiene espacio para 2 patrocinadores "presentado por" (prioridad 1).
+      if (level.priority === 1 && b.status === "won")
+        ensure(
+          (
+            await db.query(
+              "SELECT 1 FROM sponsors s JOIN sponsor_levels l ON l.id=s.level_id WHERE s.tournament_id=$1 AND s.status='won' AND l.priority=1 AND s.id IS DISTINCT FROM $2",
+              [t.id, b.id ?? null],
+            )
+          ).rowCount! < 2,
+          "Ya hay 2 patrocinadores principales (prioridad 1).",
+          400,
+        );
+    }
     ensure(
       !b.factors.previous || b.evidence.length,
       "Incluye evidencia del patrocinio previo.",

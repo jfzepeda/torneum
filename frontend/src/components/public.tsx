@@ -1,5 +1,9 @@
 "use client";
-import { RegistrationFields, registrationFromForm, defaultSchema } from "./registration-fields";
+import {
+  RegistrationFields,
+  registrationFromForm,
+  defaultSchema,
+} from "./registration-fields";
 import {
   ParticipantPayment,
   money,
@@ -15,6 +19,8 @@ import {
   Trophy,
   ArrowLeft,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -53,6 +59,7 @@ function PublicShell({
         </Link>
         <nav>
           <Link href={`/${slug}/portal`}>El torneo</Link>
+          <Link href={`/${slug}/patrocinadores`}>Patrocinadores</Link>
           <Link href={`/${slug}/mi-pareja`}>Mi pareja</Link>
           <Button
             variant="outline"
@@ -100,8 +107,7 @@ function usePublic(slug: string) {
 }
 export function Portal({ slug }: { slug: string }) {
   const { state, error } = usePublic(slug);
-  const [category, setCategory] = useState("all"),
-    [zone, setZone] = useState("portal");
+  const [category, setCategory] = useState("all");
   if (!state)
     return (
       <PublicShell slug={slug}>
@@ -175,18 +181,10 @@ export function Portal({ slug }: { slug: string }) {
             </div>
           </div>
         </section>
-        <Tabs
-          defaultValue="results"
-          onValueChange={(value) =>
-            setZone(
-              value === "schedule"
-                ? "calendar"
-                : value === "bracket"
-                  ? "bracket"
-                  : "portal",
-            )
-          }
-        >
+        <PresentedBy state={state} />
+        <TournamentDetails state={state} />
+        <OfficialSponsors state={state} />
+        <Tabs defaultValue="results">
           <div className="view-toolbar">
             <TabsList>
               <TabsTrigger value="results">Partidos</TabsTrigger>
@@ -301,54 +299,257 @@ export function Portal({ slug }: { slug: string }) {
             />
           </TabsContent>
         </Tabs>
-        <SponsorStrip state={state} zone={zone} />
+        <SupportSponsors state={state} slug={slug} />
       </main>
     </PublicShell>
   );
 }
-function SponsorStrip({ state, zone }: { state: State; zone: string }) {
-  const sponsors = state.sponsors
-    .filter(
-      (s) =>
-        s.status === "won" &&
-        state.levels.find((l) => l.id === s.level_id)?.zones.includes(zone),
-    )
-    .sort(
-      (a, b) =>
-        (state.levels.find((l) => l.id === a.level_id)?.priority || 99) -
-        (state.levels.find((l) => l.id === b.level_id)?.priority || 99),
-    );
-  if (!sponsors.length) return null;
+function TournamentDetails({ state }: { state: State }) {
+  const t = state.tournament!;
+  const courts = state.courts.filter((c) => c.enabled);
   return (
-    <section className="sponsor-strip">
-      <div className="eyebrow">QUIENES HACEN POSIBLE ESTE TORNEO</div>
-      <div>
-        {sponsors.map((s) => (
-          <a
-            href={s.website || undefined}
-            target="_blank"
-            rel="noreferrer"
-            key={s.id}
-            style={{
-              maxWidth:
-                state.levels.find((l) => l.id === s.level_id)?.logo_size || 120,
-            }}
-          >
-            {s.logo_url ? (
-              <img
-                src={s.logo_url}
-                alt={s.name}
-                loading="lazy"
-                onError={(e) => {
-                  e.currentTarget.style.display = "none";
-                }}
-              />
-            ) : null}
-            <strong>{s.name}</strong>
-          </a>
+    <section className="tournament-details">
+      <div className="panel">
+        <h2>
+          <Trophy size={18} />
+          Detalles del torneo
+        </h2>
+        <dl>
+          <dt>Fechas</dt>
+          <dd>
+            {date(t.starts_on)} — {date(t.ends_on)}
+          </dd>
+          <dt>Inscripciones</dt>
+          <dd>{t.registration_open ? "Abiertas" : "Cerradas"}</dd>
+        </dl>
+        <ul>
+          {state.categories.map((c) => (
+            <li key={c.id}>
+              <strong>{c.name}</strong>
+              <span>
+                {state.teams.filter((team) => team.category_id === c.id).length}
+                /{c.capacity} parejas
+                {c.price_cents > 0 && ` · ${money(c.price_cents)}`}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <div className="panel">
+        <h2>
+          <MapPin size={18} />
+          Sede
+        </h2>
+        <dl>
+          <dt>Lugar</dt>
+          <dd>{t.venue}</dd>
+          <dt>Canchas</dt>
+          <dd>{courts.length}</dd>
+        </dl>
+        <ul>
+          {courts.map((c) => (
+            <li key={c.id}>
+              <strong>{c.name}</strong>
+              <span>
+                {c.opens_at} — {c.closes_at}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+}
+// Tier = prioridad del paquete: 1 "presented by" (máx. 2), 2 oficiales, 3+ apoyo.
+function sponsorTiers(state: State) {
+  const tier = (s: State["sponsors"][number]) =>
+    state.levels.find((l) => l.id === s.level_id)?.priority ?? 0;
+  const won = state.sponsors
+    .filter((s) => s.status === "won" && tier(s) > 0)
+    .sort((a, b) => tier(a) - tier(b) || a.name.localeCompare(b.name));
+  return {
+    presented: won.filter((s) => tier(s) === 1).slice(0, 2),
+    official: won.filter((s) => tier(s) === 2),
+    support: won.filter((s) => tier(s) >= 3),
+  };
+}
+// Alto fijo; el ancho sigue la proporción del logo entre 1:1 y 4:3, recortando el resto.
+function SponsorLogo({
+  sponsor,
+  height,
+}: {
+  sponsor: State["sponsors"][number];
+  height: number;
+}) {
+  const [failed, setFailed] = useState(false);
+  const style = { "--logo-h": `${height}px` } as React.CSSProperties;
+  const content =
+    sponsor.logo_url && !failed ? (
+      <img
+        className="sponsor-logo"
+        style={style}
+        src={sponsor.logo_url}
+        alt={sponsor.name}
+        loading="lazy"
+        onError={() => setFailed(true)}
+      />
+    ) : (
+      <span className="sponsor-logo sponsor-logo-text" style={style}>
+        {sponsor.name}
+      </span>
+    );
+  return sponsor.website ? (
+    <a
+      href={sponsor.website}
+      target="_blank"
+      rel="noreferrer"
+      title={sponsor.name}
+    >
+      {content}
+    </a>
+  ) : (
+    content
+  );
+}
+function SponsorHeading({ children }: { children: React.ReactNode }) {
+  return <div className="sponsor-heading">{children}</div>;
+}
+function PresentedBy({ state }: { state: State }) {
+  const { presented } = sponsorTiers(state);
+  if (!presented.length) return null;
+  return (
+    <section className="sponsor-presented">
+      <SponsorHeading>PRESENTADO POR</SponsorHeading>
+      <div className="sponsor-row">
+        {presented.map((s) => (
+          <SponsorLogo key={s.id} sponsor={s} height={280} />
         ))}
       </div>
     </section>
+  );
+}
+function OfficialSponsors({ state }: { state: State }) {
+  const { official } = sponsorTiers(state);
+  const track = useRef<HTMLDivElement>(null),
+    [active, setActive] = useState(0);
+  if (!official.length) return null;
+  const step = () =>
+    (track.current?.firstElementChild as HTMLElement | null)?.offsetWidth ?? 0;
+  const go = (index: number) =>
+    track.current?.scrollTo({
+      left: index * (step() + 16),
+      behavior: "smooth",
+    });
+  return (
+    <section className="sponsor-official">
+      <SponsorHeading>PATROCINADORES OFICIALES</SponsorHeading>
+      <div className="sponsor-carousel">
+        <Button
+          variant="outline"
+          size="icon"
+          aria-label="Anterior"
+          onClick={() => go(Math.max(active - 1, 0))}
+        >
+          <ChevronLeft />
+        </Button>
+        <div
+          className="sponsor-track"
+          ref={track}
+          onScroll={(e) =>
+            setActive(Math.round(e.currentTarget.scrollLeft / (step() + 16)))
+          }
+        >
+          {official.map((s) => (
+            <div className="sponsor-card" key={s.id}>
+              <SponsorLogo sponsor={s} height={110} />
+            </div>
+          ))}
+        </div>
+        <Button
+          variant="outline"
+          size="icon"
+          aria-label="Siguiente"
+          onClick={() => go(Math.min(active + 1, official.length - 1))}
+        >
+          <ChevronRight />
+        </Button>
+      </div>
+      <div className="sponsor-dots">
+        {official.map((s, i) => (
+          <button
+            key={s.id}
+            aria-label={`Ir a ${s.name}`}
+            data-active={i === active}
+            onClick={() => go(i)}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+function SupportSponsors({ state, slug }: { state: State; slug: string }) {
+  const { support } = sponsorTiers(state);
+  if (!support.length) return null;
+  return (
+    <section className="sponsor-support">
+      <SponsorHeading>
+        <Link href={`/${slug}/patrocinadores`}>CON EL APOYO DE</Link>
+      </SponsorHeading>
+      <div className="sponsor-row">
+        {support.map((s) => (
+          <SponsorLogo key={s.id} sponsor={s} height={64} />
+        ))}
+      </div>
+    </section>
+  );
+}
+export function SponsorsPage({ slug }: { slug: string }) {
+  const { state, error } = usePublic(slug);
+  const tiers = state && sponsorTiers(state);
+  const groups = tiers
+    ? ([
+        ["PRESENTADO POR", tiers.presented, 2 * 160],
+        ["PATROCINADORES OFICIALES", tiers.official, 2 * 96],
+        ["CON EL APOYO DE", tiers.support, 2 * 56],
+      ] as const)
+    : [];
+  return (
+    <PublicShell slug={slug} orgName={state?.organization?.name}>
+      <main className="registration-page wide sponsors-page">
+        <Link className="back-link" href={`/${slug}/portal`}>
+          <ArrowLeft size={15} />
+          Volver al torneo
+        </Link>
+        <h1>Patrocinadores</h1>
+        {!state ? (
+          error ? (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          ) : (
+            <Skeleton className="h-80 w-full" />
+          )
+        ) : groups.every(([, list]) => !list.length) ? (
+          <EmptyState
+            title="Aún no hay patrocinadores"
+            description="Cuando el torneo confirme a sus patrocinadores los verás aquí."
+          />
+        ) : (
+          groups.map(([title, list, height]) =>
+            list.length ? (
+              <section key={title}>
+                <SponsorHeading>{title}</SponsorHeading>
+                <div className="sponsor-row">
+                  {list.map((s) => (
+                    <SponsorLogo key={s.id} sponsor={s} height={height} />
+                  ))}
+                </div>
+              </section>
+            ) : null,
+          )
+        )}
+      </main>
+    </PublicShell>
   );
 }
 export function Registration({ slug }: { slug: string }) {
@@ -360,7 +561,9 @@ export function Registration({ slug }: { slug: string }) {
     [done, setDone] = useState(false),
     [devLink, setDevLink] = useState("");
   const selected = state?.categories.find(
-    (c) => c.id === (category || state.categories.find(c => !c.draw_published)?.id),
+    (c) =>
+      c.id ===
+      (category || state.categories.find((c) => !c.draw_published)?.id),
   );
   return (
     <PublicShell slug={slug} orgName={state?.organization?.name}>
@@ -384,9 +587,15 @@ export function Registration({ slug }: { slug: string }) {
         {done ? (
           <section className="panel registration-success">
             <CheckCircle2 size={38} />
-            <h2>{reviewPending ? "Solicitud recibida." : "Un paso más y están dentro."}</h2>
+            <h2>
+              {reviewPending
+                ? "Solicitud recibida."
+                : "Un paso más y están dentro."}
+            </h2>
             <p>
-              {reviewPending ? "El organizador revisará la solicitud antes de completar el alta." : "Verifica el correo del capitán con el enlace enviado. Después podrás gestionar la inscripción y completar el pago si tiene costo. Si no lo ves, revisa spam o correo no deseado."}
+              {reviewPending
+                ? "El organizador revisará la solicitud antes de completar el alta."
+                : "Verifica el correo del capitán con el enlace enviado. Después podrás gestionar la inscripción y completar el pago si tiene costo. Si no lo ves, revisa spam o correo no deseado."}
             </p>
             <Button
               variant="outline"
@@ -423,7 +632,11 @@ export function Registration({ slug }: { slug: string }) {
               try {
                 const r = await mutate("/v1/registrations", {
                   slug,
-                  ...registrationFromForm(d, state?.tournament?.registration_schema || defaultSchema, state?.categories || []),
+                  ...registrationFromForm(
+                    d,
+                    state?.tournament?.registration_schema || defaultSchema,
+                    state?.categories || [],
+                  ),
                 });
                 setReviewPending(Boolean(r.review_pending));
                 setDevLink((r.development_link as string) || "");
@@ -440,7 +653,15 @@ export function Registration({ slug }: { slug: string }) {
             }}
           >
             <FieldGroup>
-              {state && <RegistrationFields schema={state?.tournament?.registration_schema || defaultSchema} categories={state.categories.filter(c => !c.draw_published)} onCategoryChange={setCategory}/> }
+              {state && (
+                <RegistrationFields
+                  schema={
+                    state?.tournament?.registration_schema || defaultSchema
+                  }
+                  categories={state.categories.filter((c) => !c.draw_published)}
+                  onCategoryChange={setCategory}
+                />
+              )}
               <p className="text-sm text-muted-foreground">
                 Costo de inscripción:{" "}
                 <strong>
@@ -448,7 +669,9 @@ export function Registration({ slug }: { slug: string }) {
                     ? `${money(selected.price_cents)} MXN`
                     : "Gratis"}
                 </strong>
-                {selected?.payment_policy ? ` · ${selected.payment_policy}` : ""}
+                {selected?.payment_policy
+                  ? ` · ${selected.payment_policy}`
+                  : ""}
               </p>
               <Alert>
                 <AlertDescription>
@@ -609,7 +832,8 @@ export function MyTeam({ slug }: { slug: string }) {
                   <Alert>
                     <AlertDescription>
                       Si existe una inscripción y el correo está habilitado,
-                      recibirás el enlace de acceso en unos minutos. Revisa también spam.
+                      recibirás el enlace de acceso en unos minutos. Revisa
+                      también spam.
                     </AlertDescription>
                   </Alert>
                 )}
