@@ -15,7 +15,7 @@ export async function getState(db: Db, who: Actor | string, archiveId?:string, t
   const selectedId = archiveId || actor?.tournament_id || tournamentId;
   const t = selectedId
     ? (internal ? await requireTournament(db, actor, selectedId) : available.find(t => t.id === selectedId && t.status !== "archived"))
-    : internal ? tournaments[0] : tournaments.length === 1 ? tournaments[0] : null;
+    : internal ? tournaments[0] : tournaments[tournaments.length - 1] || null; // público: el más antiguo (lista ordenada por created_at DESC)
   if (selectedId) ensure(t, "Torneo no encontrado.", 404);
   if (archiveId) ensure(t.status === "archived", "Torneo no archivado.", 404);
   const workspace = { management, tournaments: internal ? tournaments : tournaments.map(({id,name,starts_on,ends_on,venue,city,status}) => ({id,name,starts_on,ends_on,venue,city,status})) };

@@ -47,16 +47,20 @@ export function PublicShell({
 }
 export function usePublic(slug: string) {
   const [state, setState] = useState<State | null>(null),
-    [error, setError] = useState("");
+    [error, setError] = useState(""),
+    [chosen, setChosen] = useState<string | null>(() =>
+      typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("tournament"),
+    );
   useBrand(state?.organization);
   const refresh = useCallback(async () => {
     try {
-      setState(await get<State>(`/v1/public/${slug}`));
+      const q = chosen ? `?tournament_id=${encodeURIComponent(chosen)}` : "";
+      setState(await get<State>(`/v1/public/${slug}${q}`));
       setError("");
     } catch (e) {
       setError((e as Error).message);
     }
-  }, [slug]);
+  }, [slug, chosen]);
   useEffect(() => {
     void refresh();
     const events = new EventSource(API + `/v1/events?org=${slug}`);
@@ -69,5 +73,11 @@ export function usePublic(slug: string) {
       clearInterval(timer);
     };
   }, [refresh]);
-  return { state, error, refresh };
+  const selectTournament = useCallback((id: string) => {
+    setChosen(id);
+    const url = new URL(window.location.href);
+    url.searchParams.set("tournament", id);
+    window.history.replaceState(null, "", url);
+  }, []);
+  return { state, error, refresh, selectTournament };
 }
