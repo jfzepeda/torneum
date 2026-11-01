@@ -1,10 +1,14 @@
 "use client";
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { DatePicker, DateRangePicker, DateTimePicker } from "@/components/ui/date-picker";
+import {
+  DatePicker,
+  DateRangePicker,
+  DateTimePicker,
+} from "@/components/ui/date-picker";
 import { Field, FieldLabel } from "@/components/ui/field";
 import {
   Tooltip,
@@ -35,7 +39,8 @@ import {
 } from "@/components/ui/empty";
 import { labels } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { LoaderCircle } from "lucide-react";
+import { CircleAlert, LoaderCircle } from "lucide-react";
+import { formatError } from "@/lib/validation";
 const statusHints: Record<string, string> = {
   verification: "Pendiente de revisión por el organizador.",
   pending: "A la espera de una acción o respuesta.",
@@ -97,8 +102,20 @@ export function TextField({
 }) {
   const uid = useId();
   const helpId = `${uid}-help`;
+  const errorId = `${uid}-error`;
+  const ref = useRef<HTMLInputElement>(null);
+  const [error, setError] = useState("");
+  // Marca el campo como inválido para el navegador: bloquea el envío y enfoca el primer error.
+  const validate = (el: HTMLInputElement) => {
+    const msg = formatError(type, el.value);
+    el.setCustomValidity(msg);
+    return msg;
+  };
+  useEffect(() => {
+    if (ref.current) validate(ref.current);
+  });
   return (
-    <Field>
+    <Field data-invalid={!!error}>
       <FieldLabel htmlFor={uid}>
         {label}
         {!required && (
@@ -106,17 +123,38 @@ export function TextField({
         )}
       </FieldLabel>
       <Input
+        ref={ref}
         id={uid}
         name={name}
         defaultValue={defaultValue}
         type={type}
+        inputMode={type === "tel" ? "tel" : undefined}
+        maxLength={type === "tel" ? 18 : undefined}
         required={required}
         min={min}
         max={max}
         step={step}
         placeholder={placeholder}
-        aria-describedby={help ? helpId : undefined}
+        aria-invalid={!!error}
+        aria-describedby={[help && helpId, error && errorId].filter(Boolean).join(" ") || undefined}
+        onBlur={(e) => setError(validate(e.currentTarget))}
+        onChange={(e) => {
+          const msg = validate(e.currentTarget);
+          // Callado mientras escribe; si ya hay un error visible, se corrige o se limpia en vivo.
+          if (error) setError(msg);
+        }}
+        onInvalid={(e) => setError(e.currentTarget.validationMessage)}
       />
+      {error && (
+        <p
+          id={errorId}
+          role="alert"
+          className="flex items-start gap-1.5 text-sm font-medium text-destructive"
+        >
+          <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+          {error}
+        </p>
+      )}
       {help && (
         <p id={helpId} className="text-xs text-muted-foreground">
           {help}
@@ -125,19 +163,58 @@ export function TextField({
     </Field>
   );
 }
-export function DateField({ label, name, defaultValue, required = true, min, max }: { label: string; name: string; defaultValue?: string; required?: boolean; min?: string; max?: string }) {
+export function DateField({
+  label,
+  name,
+  defaultValue,
+  required = true,
+  min,
+  max,
+}: {
+  label: string;
+  name: string;
+  defaultValue?: string;
+  required?: boolean;
+  min?: string;
+  max?: string;
+}) {
   const uid = useId();
   return (
     <Field>
       <FieldLabel htmlFor={uid}>
         {label}
-        {!required && <span className="font-normal text-muted-foreground"> (opcional)</span>}
+        {!required && (
+          <span className="font-normal text-muted-foreground"> (opcional)</span>
+        )}
       </FieldLabel>
-      <DatePicker id={uid} name={name} defaultValue={defaultValue} required={required} min={min} max={max} />
+      <DatePicker
+        id={uid}
+        name={name}
+        defaultValue={defaultValue}
+        required={required}
+        min={min}
+        max={max}
+      />
     </Field>
   );
 }
-export function DateRangeField({ label, startName, endName, defaultStart, defaultEnd, defaultCustom = false, defaultLabel = "" }: { label: string; startName: string; endName: string; defaultStart?: string; defaultEnd?: string; defaultCustom?: boolean; defaultLabel?: string }) {
+export function DateRangeField({
+  label,
+  startName,
+  endName,
+  defaultStart,
+  defaultEnd,
+  defaultCustom = false,
+  defaultLabel = "",
+}: {
+  label: string;
+  startName: string;
+  endName: string;
+  defaultStart?: string;
+  defaultEnd?: string;
+  defaultCustom?: boolean;
+  defaultLabel?: string;
+}) {
   const uid = useId();
   const [custom, setCustom] = useState(defaultCustom);
   const [text, setText] = useState(defaultLabel);
@@ -146,31 +223,79 @@ export function DateRangeField({ label, startName, endName, defaultStart, defaul
       <FieldLabel htmlFor={uid}>{label}</FieldLabel>
       {custom ? (
         <>
-          <Input id={uid} name="dates_label" value={text} maxLength={80} onChange={(e) => setText(e.target.value)} placeholder="Fechas por confirmar" />
+          <Input
+            id={uid}
+            name="dates_label"
+            value={text}
+            maxLength={80}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Fechas por confirmar"
+          />
           <div className="flex flex-wrap gap-1">
-            {["Fechas por confirmar", "Inicios de diciembre"].map((t) => (
-              <Button key={t} type="button" variant="ghost" size="sm" onClick={() => setText(t)}>{t}</Button>
-            ))}
+            {["Fechas por confirmar", "Inicios de més", "El próximo mes"].map(
+              (t) => (
+                <Button
+                  key={t}
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setText(t)}
+                >
+                  {t}
+                </Button>
+              ),
+            )}
           </div>
         </>
       ) : (
-        <DateRangePicker id={uid} startName={startName} endName={endName} defaultStart={defaultStart} defaultEnd={defaultEnd} />
+        <DateRangePicker
+          id={uid}
+          startName={startName}
+          endName={endName}
+          defaultStart={defaultStart}
+          defaultEnd={defaultEnd}
+        />
       )}
-      <Button type="button" variant="link" size="sm" className="h-auto self-start p-0" onClick={() => setCustom(!custom)}>
-        {custom ? "Elegir fechas en el calendario" : "Fechas por confirmar o texto personalizado"}
+      <Button
+        type="button"
+        variant="link"
+        size="sm"
+        className="h-auto self-start p-0"
+        onClick={() => setCustom(!custom)}
+      >
+        {custom
+          ? "Elegir fechas en el calendario"
+          : "Fechas por confirmar o texto personalizado"}
       </Button>
     </Field>
   );
 }
-export function DateTimeField({ label, name, defaultValue, required = true }: { label: string; name: string; defaultValue?: string; required?: boolean }) {
+export function DateTimeField({
+  label,
+  name,
+  defaultValue,
+  required = true,
+}: {
+  label: string;
+  name: string;
+  defaultValue?: string;
+  required?: boolean;
+}) {
   const uid = useId();
   return (
     <Field>
       <FieldLabel htmlFor={uid}>
         {label}
-        {!required && <span className="font-normal text-muted-foreground"> (opcional)</span>}
+        {!required && (
+          <span className="font-normal text-muted-foreground"> (opcional)</span>
+        )}
       </FieldLabel>
-      <DateTimePicker id={uid} name={name} defaultValue={defaultValue} required={required} />
+      <DateTimePicker
+        id={uid}
+        name={name}
+        defaultValue={defaultValue}
+        required={required}
+      />
     </Field>
   );
 }

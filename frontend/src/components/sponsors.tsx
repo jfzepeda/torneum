@@ -674,7 +674,7 @@ export function Sponsors({ state, actor, action }: ViewProps) {
                     nativeButton={false}
                     render={
                       <a
-                        href={`https://wa.me/${preview.phone.replace(/\D/g, "")}?text=${encodeURIComponent(preview.body)}`}
+                        href={`https://wa.me/${(d => (d.length === 10 ? "52" + d : d))(preview.phone.replace(/\D/g, ""))}?text=${encodeURIComponent(preview.body)}`}
                         target="_blank"
                         rel="noreferrer"
                       />

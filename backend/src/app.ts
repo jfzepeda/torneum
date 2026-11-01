@@ -44,7 +44,7 @@ import { prospectScore, standings, resultsHash } from "./padel.js";
 import {researchSponsors} from "./research.js";
 import { registerRealtime } from "./realtime.js";
 import { registerPaymentRoutes } from "./payment-routes.js";
-import { registrationInput } from "./registration-fields.js";
+import { nationalPhone, registrationInput } from "./registration-fields.js";
 import { submitNative } from "./registrations.js";
 import { registerGoogleRoutes } from "./google/routes.js";
 import { registerPlatform } from "./platform.js";
@@ -1113,7 +1113,12 @@ async function registerCommercial(post: Post, app: FastifyInstance) {
     name: short,
     website: safeUrl,
     email: z.union([email, z.literal("")]),
-    phone: z.string().max(30),
+    phone: z
+      .string()
+      .trim()
+      .max(30)
+      .refine((v) => !v || nationalPhone(v), "Ingresa un teléfono de 10 dígitos.")
+      .transform((v) => (v ? nationalPhone(v)! : "")),
     logo_url: safeUrl,
     level_id: id.nullable(),
     status: z.enum([

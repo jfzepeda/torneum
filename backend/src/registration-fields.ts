@@ -48,6 +48,11 @@ const answers = z.record(
     z.array(z.string().max(150)).max(100),
   ]),
 );
+/** Teléfono nacional (México): 10 dígitos, con o sin +52. Devuelve los 10 dígitos o null. */
+export function nationalPhone(value: string): string | null {
+  const m = /^(?:\+?52)?(\d{10})$/.exec(value.replace(/[\s().-]/g, ""));
+  return m ? m[1] : null;
+}
 export const registrationInput = z.object({
   category_id: z.string().uuid(),
   name: z.string().trim().min(1).max(150),
@@ -93,10 +98,15 @@ export function validateRegistration(
     "Falta un correo de contacto válido.",
     400,
   );
-  ensure(/\d/.test(r.phone), "Falta un teléfono de contacto válido.", 400);
+  const phone = nationalPhone(r.phone);
+  ensure(phone, "Ingresa un teléfono de contacto de 10 dígitos.", 400);
+  r.phone = phone;
   for (const p of r.players) {
-    if (schema.phone_mode === "participant")
-      ensure(/\d/.test(p.phone), "Falta el teléfono de un participante.", 400);
+    if (schema.phone_mode === "participant") {
+      const pp = nationalPhone(p.phone);
+      ensure(pp, "Cada participante necesita un teléfono de 10 dígitos.", 400);
+      p.phone = pp;
+    }
     p.email = p.email.toLowerCase();
     ensure(
       (!p.email && !(schema.require_email && schema.email_mode === "participant")) ||
