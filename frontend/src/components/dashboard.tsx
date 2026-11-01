@@ -454,7 +454,6 @@ export function Dashboard({ slug }: { slug: string }) {
           </SheetHeader>
           <div className="p-5">
             <ChatPanel
-              tournamentId={state.tournament?.id}
               agent="admin"
               slug={slug}
               enabled={state.integrations.chatkit}
