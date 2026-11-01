@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { FieldGroup } from "@/components/ui/field";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Choice, Modal, TextField, Submit, EmptyState, formValue } from "./common";
+import { Choice, DateRangeField, Modal, TextField, Submit, EmptyState, formValue } from "./common";
 import type { Action, ViewProps } from "./dashboard";
 
 export function CreateTournament({ open, onClose, action, orgName }: { open: boolean; onClose: () => void; action: Action; orgName: string }) {
@@ -20,7 +20,7 @@ export function CreateTournament({ open, onClose, action, orgName }: { open: boo
       <TextField label="Nombre del torneo" name="name" />
       <TextField label="Sede / Club" name="venue" defaultValue={orgName} />
       <TextField label="Ciudad" name="city" required={false} />
-      <FieldGroup className="grid grid-cols-2 gap-3"><TextField label="Fecha de inicio" name="start" type="date" /><TextField label="Fecha de fin" name="end" type="date" /></FieldGroup>
+      <DateRangeField label="Fechas del torneo" startName="start" endName="end" />
       {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
       <Submit busy={busy} label="Crear torneo" />
     </FieldGroup></form>

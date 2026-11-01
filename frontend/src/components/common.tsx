@@ -4,6 +4,7 @@ import { useFormStatus } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { DatePicker, DateRangePicker, DateTimePicker } from "@/components/ui/date-picker";
 import { Field, FieldLabel } from "@/components/ui/field";
 import {
   Tooltip,
@@ -121,6 +122,39 @@ export function TextField({
           {help}
         </p>
       )}
+    </Field>
+  );
+}
+export function DateField({ label, name, defaultValue, required = true, min, max }: { label: string; name: string; defaultValue?: string; required?: boolean; min?: string; max?: string }) {
+  const uid = useId();
+  return (
+    <Field>
+      <FieldLabel htmlFor={uid}>
+        {label}
+        {!required && <span className="font-normal text-muted-foreground"> (opcional)</span>}
+      </FieldLabel>
+      <DatePicker id={uid} name={name} defaultValue={defaultValue} required={required} min={min} max={max} />
+    </Field>
+  );
+}
+export function DateRangeField({ label, startName, endName, defaultStart, defaultEnd }: { label: string; startName: string; endName: string; defaultStart?: string; defaultEnd?: string }) {
+  const uid = useId();
+  return (
+    <Field>
+      <FieldLabel htmlFor={uid}>{label}</FieldLabel>
+      <DateRangePicker id={uid} startName={startName} endName={endName} defaultStart={defaultStart} defaultEnd={defaultEnd} />
+    </Field>
+  );
+}
+export function DateTimeField({ label, name, defaultValue, required = true }: { label: string; name: string; defaultValue?: string; required?: boolean }) {
+  const uid = useId();
+  return (
+    <Field>
+      <FieldLabel htmlFor={uid}>
+        {label}
+        {!required && <span className="font-normal text-muted-foreground"> (opcional)</span>}
+      </FieldLabel>
+      <DateTimePicker id={uid} name={name} defaultValue={defaultValue} required={required} />
     </Field>
   );
 }

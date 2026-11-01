@@ -9,7 +9,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { FieldGroup } from "@/components/ui/field";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -17,6 +17,7 @@ import {
   Status,
   Modal,
   TextField,
+  DateField,
   Submit,
   Choice,
   EmptyState,
@@ -103,14 +104,14 @@ export function CalendarView({ state, actor, action }: ViewProps) {
       <div className="view-toolbar">
         <div className="toolbar-filters">
           <CalendarDays size={18} />
-          <Input
-            type="date"
-            aria-label="Día del calendario"
-            value={day}
-            onChange={(e) => setDay(e.target.value)}
-            min={state.tournament!.starts_on.slice(0, 10)}
-            max={state.tournament!.ends_on.slice(0, 10)}
-          />
+          <div className="w-48">
+            <DatePicker
+              value={day}
+              onChange={(v) => v && setDay(v)}
+              min={state.tournament!.starts_on.slice(0, 10)}
+              max={state.tournament!.ends_on.slice(0, 10)}
+            />
+          </div>
           {day !== today && (
             <Button
               variant="ghost"
@@ -398,9 +399,8 @@ export function CalendarView({ state, actor, action }: ViewProps) {
                   label: c.name,
                 }))}
               />
-              <TextField
+              <DateField
                 label="Fecha"
-                type="date"
                 name="date"
                 defaultValue={day}
               />

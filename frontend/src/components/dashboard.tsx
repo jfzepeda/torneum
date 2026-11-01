@@ -69,7 +69,7 @@ import {
   TableBody,
   TableCell,
 } from "@/components/ui/table";
-import { get, mutate, labels, date, time, place, API, tournamentLink } from "@/lib/api";
+import { get, mutate, labels, date, time, place, API, tournamentLink, tournamentSlugs } from "@/lib/api";
 import { useBrand } from "@/lib/brand";
 import type { State, Actor, Match } from "@/lib/types";
 import {
@@ -254,6 +254,10 @@ export function Dashboard({ slug }: { slug: string }) {
   const pending = state.teams.filter((t) => t.status === "pending").length;
   const selected = nav.flatMap((g) => [...g.items]).find((i) => i[0] === view);
   const title = selected?.[1] || "Inicio";
+  const publicLink = (path: string) => {
+    const s = state.tournament ? tournamentSlugs(state.tournaments).get(state.tournament.id) : "";
+    return s ? `${path}?torneo=${s}` : path;
+  };
   const props = { state: global && state.management ? { ...state, ...state.management, tournament: null } : state, actor, action };
   return (
     <SidebarProvider
@@ -372,7 +376,7 @@ export function Dashboard({ slug }: { slug: string }) {
             <Button
               variant="outline"
               nativeButton={false}
-              render={<Link href={tournamentLink(`/${slug}/portal`, state.tournament?.id)} />}
+              render={<Link href={publicLink(`/${slug}/portal`)} />}
             >
               Ver portal público
               <ArrowUpRight data-icon="inline-end" />
@@ -403,7 +407,7 @@ export function Dashboard({ slug }: { slug: string }) {
             {view === "inicio" && state.tournament ? (
               <Button
                 nativeButton={false}
-                render={<Link href={tournamentLink(`/${slug}/inscripcion`, state.tournament?.id)} />}
+                render={<Link href={publicLink(`/${slug}/inscripcion`)} />}
               >
                 <Plus data-icon="inline-start" />
                 Nueva inscripción

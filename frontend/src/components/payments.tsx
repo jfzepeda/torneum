@@ -4,7 +4,7 @@ import { get, mutate } from "@/lib/api";
 import type { State, Category } from "@/lib/types";
 import { toast } from "sonner";
 import { Button } from "./ui/button";
-import { TextField, Submit, Choice, formValue } from "./common";
+import { TextField, DateTimeField, Submit, Choice, formValue } from "./common";
 export type RegistrationPayment = {
   id: string;
   status: string;
@@ -189,17 +189,15 @@ function CategoryPayment({
         placeholder="Ej. 2 para parejas"
         defaultValue={String(category.participant_count || 2)}
       />
-      <TextField
+      <DateTimeField
         label="Apertura de inscripción (hora local)"
         name="opens"
-        type="datetime-local"
         required={false}
         defaultValue={localDate(category.registration_starts_at)}
       />
-      <TextField
+      <DateTimeField
         label="Cierre de inscripción (hora local)"
         name="closes"
-        type="datetime-local"
         required={false}
         defaultValue={localDate(category.registration_ends_at)}
       />

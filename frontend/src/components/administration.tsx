@@ -25,6 +25,7 @@ import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import {
   Modal,
   TextField,
+  DateRangeField,
   Submit,
   Choice,
   Confirm,
@@ -422,20 +423,13 @@ export function Administration({
                 defaultValue={t.city}
               />
             </FieldGroup>
-            <FieldGroup className="grid grid-cols-2 gap-4">
-              <TextField
-                label="Fecha de inicio"
-                name="start"
-                type="date"
-                defaultValue={t.starts_on.slice(0, 10)}
-              />
-              <TextField
-                label="Fecha de cierre"
-                name="end"
-                type="date"
-                defaultValue={t.ends_on.slice(0, 10)}
-              />
-            </FieldGroup>
+            <DateRangeField
+              label="Fechas del torneo"
+              startName="start"
+              endName="end"
+              defaultStart={t.starts_on.slice(0, 10)}
+              defaultEnd={t.ends_on.slice(0, 10)}
+            />
             <Field orientation="horizontal">
               <div>
                 <FieldLabel htmlFor="registration-open">
