@@ -19,6 +19,7 @@ export function Registration({ slug }: { slug: string }) {
   const { state, error } = usePublic(slug);
   const [category, setCategory] = useState(""),
     [reviewPending, setReviewPending] = useState(false),
+    [accessLink, setAccessLink] = useState(""),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState(""),
     [done, setDone] = useState(false),
@@ -39,8 +40,9 @@ export function Registration({ slug }: { slug: string }) {
         <h1>Registra tu participación.</h1>
         <p>
           Un solo integrante (el capitán) llena el formulario por la pareja.
-          Después recibirá un correo para verificar la inscripción y, si tiene
-          costo, completar el pago. Toma unos 2 minutos.
+          El teléfono es obligatorio. {state?.tournament?.registration_schema?.require_email
+            ? "El correo también es obligatorio: recibirás un enlace para verificar la inscripción."
+            : "El correo es opcional y puedes continuar sin verificación."} Toma unos 2 minutos.
         </p>
         {error && (
           <Alert variant="destructive">
@@ -53,12 +55,12 @@ export function Registration({ slug }: { slug: string }) {
             <h2>
               {reviewPending
                 ? "Solicitud recibida."
-                : "Un paso más y están dentro."}
+                : accessLink ? "Inscripción recibida." : "Un paso más y están dentro."}
             </h2>
             <p>
               {reviewPending
                 ? "El organizador revisará la solicitud antes de completar el alta."
-                : "Verifica el correo del capitán con el enlace enviado. Después podrás gestionar la inscripción y completar el pago si tiene costo. Si no lo ves, revisa spam o correo no deseado."}
+                : accessLink ? "Continúa para gestionar tu inscripción y completar el pago si tiene costo. El enlace de acceso es de un solo uso y vence en 30 minutos." : "Verifica el correo del capitán con el enlace enviado. Después podrás gestionar la inscripción y completar el pago si tiene costo. Si no lo ves, revisa spam o correo no deseado."}
             </p>
             <Button
               variant="outline"
@@ -67,6 +69,7 @@ export function Registration({ slug }: { slug: string }) {
             >
               Volver al torneo
             </Button>
+            {accessLink && <Button nativeButton={false} render={<a href={accessLink} />}>Gestionar inscripción</Button>}
             {devLink && (
               <Alert>
                 <AlertTitle>Entorno local de pruebas</AlertTitle>
@@ -101,6 +104,7 @@ export function Registration({ slug }: { slug: string }) {
                     state?.categories || [],
                   ),
                 });
+                setAccessLink((r.access_link as string) || "");
                 setReviewPending(Boolean(r.review_pending));
                 setDevLink((r.development_link as string) || "");
                 setDone(true);

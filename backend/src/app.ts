@@ -469,7 +469,7 @@ export async function buildApp() {
       );
       const rows = (
         await db.query(
-          "SELECT id FROM teams WHERE organization_id=$1 AND tournament_id=$2 AND status='verification' AND verified_at IS NULL",
+          "SELECT id FROM teams WHERE organization_id=$1 AND tournament_id=$2 AND status='verification' AND verified_at IS NULL AND email<>''",
           [a!.organization_id, (await active(db,a!)).id],
         )
       ).rows;

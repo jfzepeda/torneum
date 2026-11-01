@@ -34,6 +34,7 @@ const body = {
   name: "Los Pádel",
   captain: 0,
   email: "TEAM@example.com",
+  phone: "5512345678",
   players: [
     { name: "José Álvarez", answers: { shirt: "M" } },
     { name: "Ana López", answers: { shirt: "S" } },
@@ -255,4 +256,25 @@ test("80 percent is inclusive with two independent signals; extras never raise t
     extra_answers: { kit: true },
   };
   assert.equal(matchRegistration(base, below).collision, false);
+});
+
+test("registration requires phone and allows optional valid email", () => {
+  assert.equal(registrationSchema.parse({}).require_email, false);
+  assert.equal(registrationSchema.parse({ require_email: true }).require_email, true);
+  assert.equal(validateRegistration({ ...body, email: "" }, schema, 2).email, "");
+  assert.throws(() => validateRegistration({ ...body, phone: " " }, schema, 2));
+  assert.throws(() => validateRegistration({ ...body, email: "invalid" }, schema, 2));
+  const perPlayer = registrationSchema.parse({ ...schema, email_mode: "participant", phone_mode: "participant" });
+  const players = body.players.map(p => ({ ...p, phone: "5512345678" }));
+  assert.equal(validateRegistration({ ...body, players }, perPlayer, 2).email, "");
+  assert.throws(() => validateRegistration({ ...body, players: [players[0], { ...players[1], phone: "" }] }, perPlayer, 2));
+});
+
+test("mandatory email rejects missing team and participant contacts", () => {
+  const required = registrationSchema.parse({ ...schema, require_email: true });
+  assert.throws(() => validateRegistration({ ...body, email: "" }, required, 2));
+  assert.equal(validateRegistration(body, required, 2).email, "team@example.com");
+  const participant = registrationSchema.parse({ ...required, email_mode: "participant" });
+  assert.throws(() => validateRegistration(body, participant, 2));
+  assert.throws(() => validateRegistration({ ...body, players: body.players.map((p, i) => ({ ...p, email: i === 0 ? "captain@example.com" : "" })) }, participant, 2));
 });

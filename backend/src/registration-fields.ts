@@ -17,6 +17,7 @@ export const fieldSchema = z.object({
 });
 export const registrationSchema = z
   .object({
+    require_email: z.boolean().default(false),
     fields: z.array(fieldSchema).max(50).default([]),
     email_mode: z.enum(["team", "participant"]).default("team"),
     phone_mode: z.enum(["team", "participant"]).default("team"),
@@ -88,14 +89,17 @@ export function validateRegistration(
   ).toLowerCase();
   if (schema.phone_mode === "participant") r.phone = r.players[r.captain].phone;
   ensure(
-    z.email().safeParse(r.email).success,
+    (!schema.require_email && !r.email) || z.email().safeParse(r.email).success,
     "Falta un correo de contacto válido.",
     400,
   );
+  ensure(/\d/.test(r.phone), "Falta un teléfono de contacto válido.", 400);
   for (const p of r.players) {
+    if (schema.phone_mode === "participant")
+      ensure(/\d/.test(p.phone), "Falta el teléfono de un participante.", 400);
     p.email = p.email.toLowerCase();
     ensure(
-      (!p.email && schema.email_mode !== "participant") ||
+      (!p.email && !(schema.require_email && schema.email_mode === "participant")) ||
         z.email().safeParse(p.email).success,
       "Revisa los correos de participantes.",
       400,
@@ -279,20 +283,20 @@ export function registrationTargets(
       key: "email",
       label: "Correo del equipo",
       type: "text",
-      required: s.email_mode === "team",
+      required: s.require_email && s.email_mode === "team",
     },
     {
       key: "phone",
       label: "Teléfono del equipo",
       type: "text",
-      required: false,
+      required: s.phone_mode === "team",
     },
   ];
   for (let i = 0; i < count; i++)
     for (const [k, label, required] of [
       ["name", "Nombre", true],
-      ["email", "Correo", s.email_mode === "participant"],
-      ["phone", "Teléfono", false],
+      ["email", "Correo", s.require_email && s.email_mode === "participant"],
+      ["phone", "Teléfono", s.phone_mode === "participant"],
     ] as const)
       t.push({
         key: `players[${i}].${k}`,

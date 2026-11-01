@@ -14,6 +14,7 @@ export type ExtraField = {
 };
 export type RegistrationSchema = {
   fields: ExtraField[];
+  require_email?: boolean;
   email_mode: "team" | "participant";
   phone_mode: "team" | "participant";
 };
@@ -172,8 +173,9 @@ export function RegistrationFields({
             {schema.email_mode === "participant" && (
               <TextField
                 name={`players.${i}.email`}
-                label={`Correo del participante ${i + 1}`}
+                label={`Correo del participante ${i + 1} (opcional)}`}
                 type="email"
+                required={schema.require_email ?? false}
                 placeholder="correo@ejemplo.com"
                 defaultValue={initial?.players[i]?.email}
               />
@@ -184,7 +186,7 @@ export function RegistrationFields({
                 label={`Teléfono del participante ${i + 1}`}
                 type="tel"
                 placeholder="10 dígitos, ej. 55 1234 5678"
-                required={false}
+                required
                 defaultValue={initial?.players[i]?.phone}
               />
             )}
@@ -214,8 +216,9 @@ export function RegistrationFields({
       {schema.email_mode === "team" && (
         <TextField
           name="email"
-          label="Correo de contacto del equipo"
+          label={`Correo de contacto del equipo${schema.require_email ? "" : " (opcional)"}`}
           type="email"
+                required={schema.require_email ?? false}
           placeholder="correo@ejemplo.com"
           defaultValue={initial?.email}
         />
@@ -223,10 +226,10 @@ export function RegistrationFields({
       {schema.phone_mode === "team" && (
         <TextField
           name="phone"
-          label="Teléfono del equipo (opcional)"
+          label="Teléfono del equipo"
           type="tel"
           placeholder="10 dígitos, ej. 55 1234 5678"
-          required={false}
+          required
           defaultValue={initial?.phone}
         />
       )}

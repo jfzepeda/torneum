@@ -155,7 +155,7 @@ export async function createRegistration(
   ).rows[0];
   ensure(Number(count.count) < c.capacity, "La categoría no tiene cupos.");
   ensure(
-    !(
+    !b.email || !(
       await db.query(
         "SELECT 1 FROM teams WHERE tournament_id=$1 AND lower(email)=$2",
         [tournament, b.email],
@@ -163,10 +163,11 @@ export async function createRegistration(
     ).rowCount,
     "Ya existe una inscripción con ese correo. Vincula el original o utiliza otro contacto.",
   );
+  const skipVerification = !registrationSchema.parse(t.registration_schema).require_email;
   const dev =
     process.env.DEV_MAILBOX === "true" && process.env.NODE_ENV !== "production";
   ensure(
-    dev || (process.env.SMTP_URL && process.env.MAIL_FROM),
+    skipVerification || dev || (process.env.SMTP_URL && process.env.MAIL_FROM),
     "El servicio de verificación no está configurado.",
     503,
   );
@@ -188,12 +189,14 @@ export async function createRegistration(
     )
   ).rows[0];
   const registration = await registerPayment(db, c, team.id);
+  if (skipVerification)
+    await db.query("UPDATE teams SET verified_at=now(),status=$2 WHERE id=$1", [team.id, t.auto_approve && registration.status === "CONFIRMED" ? "approved" : "pending"]);
   const token = newToken();
   await db.query(
     "INSERT INTO verification_tokens VALUES($1,$2,$3,now()+interval '30 minutes',NULL)",
     [hashToken(token), org, team.id],
   );
-  if (!dev)
+  if (!skipVerification && !dev)
     await db.query(
       "INSERT INTO registration_verification_outbox(team_id,token) VALUES($1,$2)",
       [team.id, token],
@@ -203,13 +206,15 @@ export async function createRegistration(
   ).rows[0].slug;
   await audit(db, org, team.id, "registration.create", team.id, null, {
     source,
-    status: "verification",
+    status: skipVerification ? (t.auto_approve && registration.status === "CONFIRMED" ? "approved" : "pending") : "verification",
   });
   return {
     ok: true,
     team_id: team.id,
     registration_id: registration.id,
-    development_link: dev
+    verification_skipped: skipVerification,
+    access_link: skipVerification ? (process.env.FRONTEND_URL || "http://127.0.0.1:3000") + "/" + slug + "/verificar#" + token : undefined,
+    development_link: dev && !skipVerification
       ? (process.env.FRONTEND_URL || "http://127.0.0.1:3000") +
         "/" +
         slug +

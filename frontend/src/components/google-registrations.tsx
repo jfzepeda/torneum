@@ -702,6 +702,12 @@ export function GoogleRegistrations({ state, actor, action }: ViewProps) {
             </AlertDescription>
           </Alert>
           <Choice
+            label="Solicitar correo obligatorio"
+            value={String(schema.require_email ?? false)}
+            onChange={(v) => setSchema((s) => ({ ...s, require_email: v === "true" }))}
+            options={[{ value: "false", label: "No, correo opcional y sin verificación" }, { value: "true", label: "Sí, correo obligatorio con verificación" }]}
+          />
+          <Choice
             label="Captura de correo"
             value={schema.email_mode}
             onChange={(v) =>

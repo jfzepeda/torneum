@@ -468,7 +468,7 @@ export async function sendRegistrationNotifications() {
     ).rows;
     for (const n of rows) {
       try {
-        await nodemailer
+        if (n.email) await nodemailer
           .createTransport(process.env.SMTP_URL)
           .sendMail({
             from: process.env.MAIL_FROM,
