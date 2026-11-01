@@ -88,11 +88,11 @@ export function Operations({
         .includes(search.toLowerCase()),
   );
   const toVerify = state.teams.filter((t) => t.status === "verification");
-  const bulkVerify = async (path: string, message: string) => {
+  const bulkVerify = async (path: string, message: string, body: Record<string, unknown> = {}) => {
     if (!window.confirm(message)) return;
     setBusy(true);
     try {
-      await action(path, {});
+      await action(path, body);
     } catch {
     } finally {
       setBusy(false);
@@ -353,7 +353,7 @@ export function Operations({
                     </dd>
                   </div>
                 </dl>
-                {can("registration")&&!c.draw_published&&<div className="form-actions"><Button variant="outline" onClick={()=>{setEditCategory(c);setSetCount(String(c.rules.sets));setModal(true);}}>Editar reglas</Button></div>}
+                {can("registration")&&!c.draw_published&&<div className="form-actions"><Button variant="outline" onClick={()=>{setEditCategory(c);setSetCount(String(c.rules.sets));setModal(true);}}>Editar reglas</Button>{!state.teams.some((t)=>t.category_id===c.id)&&<Button variant="destructive" disabled={busy} onClick={()=>bulkVerify("/v1/categories/delete",`¿Eliminar la categoría "${c.name}"? Esta acción no se puede deshacer.`,{id:c.id})}>Eliminar</Button>}</div>}
               </section>
             ))}
         </div>
