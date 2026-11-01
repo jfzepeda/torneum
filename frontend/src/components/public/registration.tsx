@@ -126,10 +126,10 @@ export function Registration({ slug }: { slug: string }) {
                 />
               )}
               <p className="text-sm text-muted-foreground">
-                Precio por pareja/equipo:{" "}
+                Precio de inscripción:{" "}
                 <strong>
                   {selected?.price_cents
-                    ? `${money(selected.price_cents)} MXN`
+                    ? `${money(selected.price_cents / Math.max(selected.participant_count || 1, 1))} MXN por jugador`
                     : "Gratis"}
                 </strong>
                 {selected?.payment_policy

@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Choice, Status, EmptyState } from "../common";
 import { GroupTables, Bracket } from "../operations";
 import { ChatPanel } from "../chat-panel";
-import { date, time, place } from "@/lib/api";
+import { date, time, place, tournamentDates } from "@/lib/api";
 import { PublicShell, usePublic } from "./shell";
 import { TournamentDetails } from "./tournament-details";
 import { PresentedBy, OfficialSponsors, SupportSponsors } from "./sponsor-sections";
@@ -71,7 +71,7 @@ export function Portal({ slug }: { slug: string }) {
             <div className="banner-meta">
               <span>
                 <CalendarDays size={16} />
-                {date(t.starts_on)} — {date(t.ends_on)}
+                {tournamentDates(t)}
               </span>
               <span>
                 <MapPin size={16} />

@@ -36,7 +36,7 @@ function Tip({ text, children }: { text: string; children: React.ReactElement })
 }
 type Change = { id: string; court_id: string | null; starts_at: string | null };
 export function CalendarView({ state, actor, action }: ViewProps) {
-  const [day, setDay] = useState(state.tournament!.starts_on.slice(0, 10)),
+  const [day, setDay] = useState((state.tournament!.starts_on ?? new Date().toLocaleDateString("sv-SE")).slice(0, 10)),
     [drag, setDrag] = useState<Match | null>(null),
     [editing, setEditing] = useState<Match | null>(null),
     [court, setCourt] = useState(state.courts[0]?.id || ""),
@@ -108,8 +108,8 @@ export function CalendarView({ state, actor, action }: ViewProps) {
             <DatePicker
               value={day}
               onChange={(v) => v && setDay(v)}
-              min={state.tournament!.starts_on.slice(0, 10)}
-              max={state.tournament!.ends_on.slice(0, 10)}
+              min={state.tournament!.starts_on?.slice(0, 10)}
+              max={state.tournament!.ends_on?.slice(0, 10)}
             />
           </div>
           {day !== today && (
@@ -117,8 +117,9 @@ export function CalendarView({ state, actor, action }: ViewProps) {
               variant="ghost"
               size="sm"
               disabled={
+                !state.tournament!.starts_on ||
                 today < state.tournament!.starts_on.slice(0, 10) ||
-                today > state.tournament!.ends_on.slice(0, 10)
+                today > state.tournament!.ends_on!.slice(0, 10)
               }
               onClick={() => setDay(today)}
             >

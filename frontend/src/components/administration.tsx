@@ -348,7 +348,7 @@ export function Administration({
                 {state.archives.map((a) => (
                   <TableRow key={a.id}>
                     <TableCell>{a.name}</TableCell>
-                    <TableCell>{date(a.starts_on)}</TableCell>
+                    <TableCell>{a.starts_on ? date(a.starts_on) : a.dates_label || "Por confirmar"}</TableCell>
                     <TableCell>Archivado <ArchiveDetails id={a.id}/></TableCell>
                   </TableRow>
                 ))}
@@ -386,8 +386,9 @@ export function Administration({
                 name: formValue(d, "name"),
                 venue: formValue(d, "venue"),
                 city: formValue(d, "city"),
-                starts_on: formValue(d, "start"),
-                ends_on: formValue(d, "end"),
+                starts_on: formValue(d, "start") || null,
+                ends_on: formValue(d, "end") || null,
+                dates_label: formValue(d, "dates_label"),
                 auto_approve: auto,
                 registration_open: registration,
                 highlights: icons
@@ -427,8 +428,10 @@ export function Administration({
               label="Fechas del torneo"
               startName="start"
               endName="end"
-              defaultStart={t.starts_on.slice(0, 10)}
-              defaultEnd={t.ends_on.slice(0, 10)}
+              defaultStart={t.starts_on?.slice(0, 10)}
+              defaultEnd={t.ends_on?.slice(0, 10)}
+              defaultCustom={!t.starts_on}
+              defaultLabel={t.dates_label}
             />
             <Field orientation="horizontal">
               <div>

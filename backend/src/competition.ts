@@ -314,6 +314,10 @@ export async function changeSchedule(
       };
       const s = parts(start),
         e = parts(end);
+      ensure(
+        tournament.starts_on && tournament.ends_on,
+        "Define las fechas del torneo para programar partidos.",
+      );
       const dateStr = (v: Date | string) =>
         typeof v === "string" ? v.slice(0, 10) : v.toLocaleDateString("sv-SE");
       ensure(
@@ -406,6 +410,10 @@ export async function autoSchedule(
   ).rows;
   const slots = rows.filter((m) => m.starts_at);
   const changes: any[] = [];
+  ensure(
+    t.starts_on && t.ends_on,
+    "Define las fechas del torneo para programar partidos.",
+  );
   const date =
     t.starts_on instanceof Date
       ? t.starts_on.toLocaleDateString("sv-SE")

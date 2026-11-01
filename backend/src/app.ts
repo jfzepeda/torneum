@@ -869,8 +869,9 @@ export async function buildApp() {
       name: short,
       venue: short,
       city: z.string().trim().max(150).default(""),
-      starts_on: z.iso.date(),
-      ends_on: z.iso.date(),
+      starts_on: z.iso.date().nullable().default(null),
+      ends_on: z.iso.date().nullable().default(null),
+      dates_label: z.string().trim().max(80).default(""),
       auto_approve: z.boolean(),
       registration_open: z.boolean(),
       highlights: z
@@ -886,21 +887,26 @@ export async function buildApp() {
     }),
     "admin",
     async (b, a, db) => {
-      ensure(b.ends_on >= b.starts_on, "Fechas inválidas.", 400);
+      ensure(
+        !!b.starts_on === !!b.ends_on &&
+          (!b.starts_on || b.ends_on! >= b.starts_on),
+        "Fechas inválidas.",
+        400,
+      );
       const t = await active(db, a!);
       const scheduled = await db.query(
         "SELECT 1 FROM matches WHERE tournament_id=$1 AND starts_at IS NOT NULL LIMIT 1",
         [t.id],
       );
-      const oldStart = t.starts_on.toLocaleDateString("sv-SE"),
-        oldEnd = t.ends_on.toLocaleDateString("sv-SE");
+      const oldStart = t.starts_on?.toLocaleDateString("sv-SE") ?? null,
+        oldEnd = t.ends_on?.toLocaleDateString("sv-SE") ?? null;
       ensure(
         !scheduled.rowCount ||
           (b.starts_on === oldStart && b.ends_on === oldEnd),
         "Desprograma los partidos antes de cambiar las fechas.",
       );
       await db.query(
-        "UPDATE tournaments SET name=$2,venue=$3,starts_on=$4,ends_on=$5,auto_approve=$6,registration_open=$7,highlights=$8,city=$9 WHERE id=$1",
+        "UPDATE tournaments SET name=$2,venue=$3,starts_on=$4,ends_on=$5,auto_approve=$6,registration_open=$7,highlights=$8,city=$9,dates_label=$10 WHERE id=$1",
         [
           t.id,
           b.name,
@@ -911,6 +917,7 @@ export async function buildApp() {
           b.registration_open,
           JSON.stringify(b.highlights),
           b.city,
+          b.dates_label,
         ],
       );
       await audit(

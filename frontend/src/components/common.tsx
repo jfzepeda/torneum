@@ -137,12 +137,28 @@ export function DateField({ label, name, defaultValue, required = true, min, max
     </Field>
   );
 }
-export function DateRangeField({ label, startName, endName, defaultStart, defaultEnd }: { label: string; startName: string; endName: string; defaultStart?: string; defaultEnd?: string }) {
+export function DateRangeField({ label, startName, endName, defaultStart, defaultEnd, defaultCustom = false, defaultLabel = "" }: { label: string; startName: string; endName: string; defaultStart?: string; defaultEnd?: string; defaultCustom?: boolean; defaultLabel?: string }) {
   const uid = useId();
+  const [custom, setCustom] = useState(defaultCustom);
+  const [text, setText] = useState(defaultLabel);
   return (
     <Field>
       <FieldLabel htmlFor={uid}>{label}</FieldLabel>
-      <DateRangePicker id={uid} startName={startName} endName={endName} defaultStart={defaultStart} defaultEnd={defaultEnd} />
+      {custom ? (
+        <>
+          <Input id={uid} name="dates_label" value={text} maxLength={80} onChange={(e) => setText(e.target.value)} placeholder="Fechas por confirmar" />
+          <div className="flex flex-wrap gap-1">
+            {["Fechas por confirmar", "Inicios de diciembre"].map((t) => (
+              <Button key={t} type="button" variant="ghost" size="sm" onClick={() => setText(t)}>{t}</Button>
+            ))}
+          </div>
+        </>
+      ) : (
+        <DateRangePicker id={uid} startName={startName} endName={endName} defaultStart={defaultStart} defaultEnd={defaultEnd} />
+      )}
+      <Button type="button" variant="link" size="sm" className="h-auto self-start p-0" onClick={() => setCustom(!custom)}>
+        {custom ? "Elegir fechas en el calendario" : "Fechas por confirmar o texto personalizado"}
+      </Button>
     </Field>
   );
 }

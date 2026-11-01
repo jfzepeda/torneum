@@ -27,10 +27,10 @@ export function registerWorkspaces(post: RouteRegistrar) {
   const id = z.string().uuid();
   post("/v1/tournaments/new", z.object({
     name: z.string().trim().min(1).max(150), venue: z.string().trim().min(1).max(150),
-    city: z.string().trim().max(150).default(""), starts_on: z.iso.date(), ends_on: z.iso.date(),
+    city: z.string().trim().max(150).default(""), starts_on: z.iso.date().nullable().default(null), ends_on: z.iso.date().nullable().default(null), dates_label: z.string().trim().max(80).default(""),
   }), "admin", async (b, a, db) => {
-    ensure(b.ends_on >= b.starts_on, "Fechas inválidas.", 400);
-    const t = (await db.query("INSERT INTO tournaments(organization_id,name,venue,city,starts_on,ends_on) VALUES($1,$2,$3,$4,$5,$6) RETURNING id", [a!.organization_id,b.name,b.venue,b.city,b.starts_on,b.ends_on])).rows[0];
+    ensure(!!b.starts_on === !!b.ends_on && (!b.starts_on || b.ends_on! >= b.starts_on), "Fechas inválidas.", 400);
+    const t = (await db.query("INSERT INTO tournaments(organization_id,name,venue,city,starts_on,ends_on,dates_label) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id", [a!.organization_id,b.name,b.venue,b.city,b.starts_on,b.ends_on,b.dates_label])).rows[0];
     await audit(db, a!.organization_id, a!.id, "tournament.create", t.id, null, b);
     return { id: t.id };
   });

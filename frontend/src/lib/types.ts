@@ -141,8 +141,9 @@ export type State = {
     name: string;
     venue: string;
     city: string;
-    starts_on: string;
-    ends_on: string;
+    starts_on: string | null;
+    ends_on: string | null;
+    dates_label: string;
     timezone: string;
     auto_approve: boolean;
     registration_open: boolean;
@@ -198,7 +199,7 @@ export type State = {
     created_at: string;
     resource_id: string;
   }[];
-  archives: { id: string; name: string; starts_on: string }[];
+  archives: { id: string; name: string; starts_on: string | null; dates_label?: string }[];
   integrations: { chatkit: boolean; gmail: boolean; smtp: boolean };
 };
 

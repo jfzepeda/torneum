@@ -69,7 +69,7 @@ import {
   TableBody,
   TableCell,
 } from "@/components/ui/table";
-import { get, mutate, labels, date, time, place, API, tournamentLink, tournamentSlugs } from "@/lib/api";
+import { get, mutate, labels, date, tournamentDates, time, place, API, tournamentLink, tournamentSlugs } from "@/lib/api";
 import { useBrand } from "@/lib/brand";
 import type { State, Actor, Match } from "@/lib/types";
 import {
@@ -614,8 +614,7 @@ function Overview({ state, go }: ViewProps & { go: (view: string) => void }) {
           <div className="banner-meta">
             <span>
               <CalendarDays size={15} />
-              {date(t.starts_on)} —{" "}
-              {date(t.ends_on, {
+              {tournamentDates(t, {
                 day: "numeric",
                 month: "long",
                 year: "numeric",

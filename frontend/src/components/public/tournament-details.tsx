@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { money } from "../payments";
-import { date, place } from "@/lib/api";
+import { place, tournamentDates } from "@/lib/api";
 import type { State, Highlight } from "@/lib/types";
 const highlightIcons: Record<Highlight["icon"], typeof Trophy> = {
   trophy: Trophy,
@@ -48,7 +48,7 @@ export function TournamentDetails({
         <div>
           <h2>Detalles del torneo</h2>
           <p>
-            {state.categories.length} categorías, {courts.length} canchas y cupo
+            {state.categories.length} categorías, {courts.length ? `${courts.length} canchas` : "todas las canchas"} y cupo
             para {capacity} parejas.
           </p>
           <div className="detail-grid">
@@ -56,7 +56,7 @@ export function TournamentDetails({
               <CalendarDays />
               <div>
                 <h4>
-                  {date(t.starts_on)} — {date(t.ends_on)}
+                  {tournamentDates(t)}
                 </h4>
                 <p>Fechas del torneo</p>
               </div>
@@ -100,7 +100,7 @@ export function TournamentDetails({
                     {teams(c.id)}/{c.capacity} parejas
                   </span>
                 </div>
-                <b>{c.price_cents > 0 ? `${money(c.price_cents)} por pareja/equipo` : "Gratis"}</b>
+                <b>{c.price_cents > 0 ? `${money(c.price_cents / Math.max(c.participant_count || 1, 1))} por jugador` : "Gratis"}</b>
               </li>
             ))}
           </ul>
@@ -162,7 +162,7 @@ export function TournamentDetails({
               <div>
                 <h4>Fechas y horario</h4>
                 <p>
-                  {date(t.starts_on)} — {date(t.ends_on)}
+                  {tournamentDates(t)}
                   {opens && (
                     <>
                       <br />
@@ -175,8 +175,8 @@ export function TournamentDetails({
             <div>
               <Trophy />
               <div>
-                <h4>{courts.length} canchas</h4>
-                <p>{courts.map((c) => c.name).join(" · ")}</p>
+                <h4>{courts.length ? `${courts.length} canchas` : "Todas las canchas"}</h4>
+                {courts.length > 0 && <p>{courts.map((c) => c.name).join(" · ")}</p>}
               </div>
             </div>
           </div>

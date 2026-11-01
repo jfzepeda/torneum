@@ -50,6 +50,13 @@ export const date = (
     ...options,
     timeZone: "America/Mexico_City",
   }).format(new Date(value));
+export const tournamentDates = (
+  t: { starts_on: string | null; ends_on: string | null; dates_label?: string },
+  options?: Intl.DateTimeFormatOptions,
+) =>
+  t.starts_on && t.ends_on
+    ? `${date(t.starts_on)} — ${date(t.ends_on, options)}`
+    : t.dates_label || "Fechas por confirmar";
 export const time = (value: string) =>
   date(value, { hour: "2-digit", minute: "2-digit" });
 export const labels: Record<string, string> = {

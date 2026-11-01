@@ -14,7 +14,7 @@ export function CreateTournament({ open, onClose, action, orgName }: { open: boo
     <form onSubmit={async e => {
       e.preventDefault(); setBusy(true); setError("");
       const d = new FormData(e.currentTarget);
-      try { await action("/v1/tournaments/new", { name:formValue(d,"name"), venue:formValue(d,"venue"), city:formValue(d,"city"), starts_on:formValue(d,"start"), ends_on:formValue(d,"end") }); onClose(); }
+      try { await action("/v1/tournaments/new", { name:formValue(d,"name"), venue:formValue(d,"venue"), city:formValue(d,"city"), starts_on:formValue(d,"start")||null, ends_on:formValue(d,"end")||null, dates_label:formValue(d,"dates_label") }); onClose(); }
       catch(e) { setError((e as Error).message); } finally { setBusy(false); }
     }}><FieldGroup>
       <TextField label="Nombre del torneo" name="name" />
