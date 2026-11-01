@@ -34,6 +34,28 @@ if (
   process.argv[1]?.endsWith("migrate.ts") ||
   process.argv[1]?.endsWith("migrate.js")
 ) {
-  await migrate();
+  // Postgres may still be starting (e.g. Railway restart): retry connection errors only.
+  const transient = new Set(["ECONNREFUSED", "ETIMEDOUT", "ENOTFOUND", "57P03"]);
+  const isTransient = (e: unknown) => {
+    const err = e as { code?: string; errors?: { code?: string }[] };
+    return (
+      transient.has(err.code ?? "") ||
+      !!err.errors?.some((x) => transient.has(x.code ?? ""))
+    );
+  };
+  const maxAttempts = 10;
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await migrate();
+      break;
+    } catch (error) {
+      if (attempt >= maxAttempts || !isTransient(error)) throw error;
+      const delay = Math.min(2000 * attempt, 15000);
+      console.warn(
+        `DB not ready (attempt ${attempt}/${maxAttempts}), retrying in ${delay}ms`,
+      );
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
   await pool.end();
 }
