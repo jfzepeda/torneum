@@ -34,6 +34,7 @@ import {
   formValue,
 } from "./common";
 import type { ViewProps } from "./dashboard";
+import { defaultSchema } from "./registration-fields";
 import { date, labels } from "@/lib/api";
 function BrandSettings({
   state,
@@ -176,6 +177,9 @@ export function Administration({
     [auto, setAuto] = useState(state.tournament?.auto_approve || false),
     [registration, setRegistration] = useState(
       state.tournament?.registration_open || false,
+    ),
+    [requireEmail, setRequireEmail] = useState(
+      state.tournament?.registration_schema?.require_email ?? false,
     ),
     [icons, setIcons] = useState(() =>
       [0, 1, 2].map((i) => state.tournament?.highlights?.[i]?.icon || "trophy"),
@@ -367,8 +371,6 @@ export function Administration({
   if (!t) return <EmptyState title="Selecciona un torneo" description="Los ajustes de un torneo aparecen al seleccionarlo en el sidebar." />;
   return (
     <div className="settings-layout">
-      <PaymentSettings state={state} scope="tournament" />
-      <section className="panel p-5"><h2>Archivar torneo</h2><p>Se conserva su historial. Todos los partidos deben haber terminado.</p><Confirm title={`Archivar ${t.name}`} description="Este torneo dejará de aceptar inscripciones. Los demás torneos seguirán abiertos." onConfirm={() => action("/v1/workspaces/archive", {tournament_id:t.id})}>Archivar torneo</Confirm></section>
       <section className="panel settings-form">
         <div className="panel-heading">
           <div>
@@ -382,6 +384,17 @@ export function Administration({
             setBusy(true);
             const d = new FormData(e.currentTarget);
             try {
+              if (
+                requireEmail !==
+                (t.registration_schema?.require_email ?? false)
+              )
+                await action("/v1/registration-fields/save", {
+                  tournament_id: t.id,
+                  schema: {
+                    ...(t.registration_schema || defaultSchema),
+                    require_email: requireEmail,
+                  },
+                });
               await action("/v1/settings", {
                 name: formValue(d, "name"),
                 venue: formValue(d, "venue"),
@@ -450,6 +463,22 @@ export function Administration({
             </Field>
             <Field orientation="horizontal">
               <div>
+                <FieldLabel htmlFor="require-email">
+                  Correo obligatorio
+                </FieldLabel>
+                <FieldDescription>
+                  Exige correo con verificación al inscribirse. Apagado, el
+                  correo es opcional y no se verifica.
+                </FieldDescription>
+              </div>
+              <Switch
+                id="require-email"
+                checked={requireEmail}
+                onCheckedChange={setRequireEmail}
+              />
+            </Field>
+            <Field orientation="horizontal">
+              <div>
                 <FieldLabel htmlFor="auto-approve">
                   Aprobación automática
                 </FieldLabel>
@@ -497,6 +526,8 @@ export function Administration({
           </FieldGroup>
         </form>
       </section>
+      <PaymentSettings state={state} scope="tournament" />
+      <section className="panel p-5"><h2>Archivar torneo</h2><p>Se conserva su historial. Todos los partidos deben haber terminado.</p><Confirm title={`Archivar ${t.name}`} description="Este torneo dejará de aceptar inscripciones. Los demás torneos seguirán abiertos." onConfirm={() => action("/v1/workspaces/archive", {tournament_id:t.id})}>Archivar torneo</Confirm></section>
       <section className="panel">
         <div className="panel-heading">
           <h2>Historial de actividad</h2>
@@ -525,6 +556,7 @@ export function Administration({
           ))}
         </div>
       </section>
+      <PaymentSettings state={state} scope="categories" />
     </div>
   );
 }

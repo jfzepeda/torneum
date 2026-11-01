@@ -124,8 +124,14 @@ function CategoryPayment({
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   return (
+    <details className="panel p-6">
+    <summary className="cursor-pointer">
+      <h3 className="inline">
+        {category.name} · {category.capacity} cupos
+      </h3>
+    </summary>
     <form
-      className="panel p-6 space-y-3"
+      className="space-y-3 pt-4"
       onSubmit={async (e) => {
         e.preventDefault();
         setBusy(true);
@@ -156,9 +162,6 @@ function CategoryPayment({
         }
       }}
     >
-      <h3>
-        {category.name} · {category.capacity} cupos
-      </h3>
       <Choice
         label="Forma de pago"
         value={mode}
@@ -216,6 +219,7 @@ function CategoryPayment({
         <Submit busy={busy} label="Guardar cobro de categoría" />
       </div>
     </form>
+    </details>
   );
 }
 function localDate(value?: string | null) {
@@ -225,7 +229,7 @@ function localDate(value?: string | null) {
     .toISOString()
     .slice(0, 16);
 }
-export function PaymentSettings({ state, scope = "tournament" }: { state: State; scope?: "club" | "tournament" }) {
+export function PaymentSettings({ state, scope = "tournament" }: { state: State; scope?: "club" | "tournament" | "categories" }) {
   const [account, setAccount] = useState<{
     connected: boolean;
     charges_enabled?: boolean;
@@ -334,7 +338,10 @@ export function PaymentSettings({ state, scope = "tournament" }: { state: State;
         </Button>
         {error && <p role="alert">{error}</p>}
       </div>}
-      {scope === "tournament" && state.categories.map((c) => (
+      {scope === "categories" && (
+        <h2 className="mt-2">Configuración de categorías</h2>
+      )}
+      {scope === "categories" && state.categories.map((c) => (
         <CategoryPayment key={JSON.stringify(c)} category={c} saved={load} />
       ))}
       {scope === "tournament" && <div className="panel p-6 space-y-3">
