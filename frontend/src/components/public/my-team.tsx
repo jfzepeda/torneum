@@ -67,7 +67,7 @@ export function MyTeam({ slug }: { slug: string }) {
     <PublicShell slug={slug} orgName={state?.organization?.name}>
       <main className="registration-page wide">
         <div className="eyebrow">ESPACIO DEL CAPITÁN</div>
-        <h1>{team?.name || "Gestiona tu pareja."}</h1>
+        <h1>{team?.name || "Gestiona tu inscripción."}</h1>
         {!team ? (
           <section className="panel registration-form">
             <p>

@@ -16,7 +16,12 @@ export function PublicShell({
   children: React.ReactNode;
   slug: string;
   orgName?: string;
-  picker?: { value: string; slug: string; options: { value: string; label: string }[]; onChange: (id: string) => void };
+  picker?: {
+    value: string;
+    slug: string;
+    options: { value: string; label: string }[];
+    onChange: (id: string) => void;
+  };
 }) {
   const q = picker?.slug ? `?torneo=${picker.slug}` : "";
   return (
@@ -29,12 +34,16 @@ export function PublicShell({
         <nav>
           {picker && picker.options.length > 1 && (
             <div className="w-48">
-              <Choice value={picker.value} onChange={picker.onChange} options={picker.options} />
+              <Choice
+                value={picker.value}
+                onChange={picker.onChange}
+                options={picker.options}
+              />
             </div>
           )}
           <Link href={`/${slug}/portal${q}`}>El torneo</Link>
           <Link href={`/${slug}/patrocinadores${q}`}>Patrocinadores</Link>
-          <Link href={`/${slug}/mi-pareja${q}`}>Mi pareja</Link>
+          <Link href={`/${slug}/mi-pareja${q}`}>Mi inscripción</Link>
           <Button
             variant="outline"
             nativeButton={false}
@@ -58,13 +67,16 @@ export function usePublic(slug: string) {
   const [state, setState] = useState<State | null>(null),
     [error, setError] = useState(""),
     [chosen, setChosen] = useState<string | null>(() =>
-      typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("torneo"),
+      typeof window === "undefined"
+        ? null
+        : new URLSearchParams(window.location.search).get("torneo"),
     ),
     chosenId = useRef<string | null>(null);
   useBrand(state?.organization);
   const refresh = useCallback(async () => {
     try {
-      const fetchFor = (id: string | null) => get<State>(`/v1/public/${slug}${id ? `?tournament_id=${id}` : ""}`);
+      const fetchFor = (id: string | null) =>
+        get<State>(`/v1/public/${slug}${id ? `?tournament_id=${id}` : ""}`);
       let next = await fetchFor(chosenId.current);
       if (chosen && !chosenId.current) {
         const slugs = tournamentSlugs(next.tournaments);

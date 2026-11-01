@@ -56,6 +56,8 @@ export function Sponsors({ state, actor, action }: ViewProps) {
     [channel, setChannel] = useState("manual"),
     [preview, setPreview] = useState<Message | null>(null),
     [selected, setSelected] = useState<string[]>([]),
+    [filter, setFilter] = useState("all"),
+    [picked, setPicked] = useState<string[]>([]),
     [newLevel, setNewLevel] = useState(false);
   if (actor.role !== "admin")
     return (
@@ -66,6 +68,14 @@ export function Sponsors({ state, actor, action }: ViewProps) {
       </Alert>
     );
   const draft = typeof editing === "object" ? editing : null;
+  const visible = state.sponsors.filter((s) => filter === "all" || s.status === filter),
+    selectable = visible.filter((s) => s.status !== "excluded"),
+    pendingVisible = selectable.filter((s) => s.status !== "won"),
+    pickedPending = state.sponsors.filter((s) => picked.includes(s.id) && s.status !== "won");
+  const confirm = async (ids: string[]) => {
+    await action("/v1/sponsors/confirm", { ids });
+    setPicked([]);
+  };
   const edit = (s: Sponsor | true) => {
     setEditing(s);
     setLevel(s === true ? "none" : s.level_id || "none");
@@ -86,10 +96,58 @@ export function Sponsors({ state, actor, action }: ViewProps) {
         </Button>
       </div>
       <TabsContent value="partners">
+        <div className="view-toolbar">
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrar por estado">
+            {["all", "prospect", "reviewed", "negotiation", "won", "lost", "excluded"].map((f) => (
+              <Button
+                key={f}
+                size="sm"
+                variant={filter === f ? "default" : "outline"}
+                aria-pressed={filter === f}
+                onClick={() => {
+                  setFilter(f);
+                  setPicked([]);
+                }}
+              >
+                {f === "all" ? "Todos" : labels[f]} (
+                {f === "all" ? state.sponsors.length : state.sponsors.filter((s) => s.status === f).length})
+              </Button>
+            ))}
+          </div>
+        </div>
+        <div className="view-toolbar">
+          <span aria-live="polite">{picked.length} {picked.length === 1 ? "seleccionado" : "seleccionados"}</span>
+          <div className="flex flex-wrap gap-2">
+            <Confirm
+              disabled={!pickedPending.length}
+              title="Confirmar patrocinadores seleccionados"
+              description={`Se confirmarán y aparecerán en el portal público: ${pickedPending.map((s) => s.name).join(" · ")}`}
+              onConfirm={() => confirm(pickedPending.map((s) => s.id))}
+            >
+              Confirmar selección
+            </Confirm>
+            <Confirm
+              disabled={!pendingVisible.length}
+              title="Confirmar todos"
+              description={`Se confirmarán ${pendingVisible.length} patrocinadores y aparecerán en el portal público: ${pendingVisible.map((s) => s.name).join(" · ")}`}
+              onConfirm={() => confirm(pendingVisible.map((s) => s.id))}
+            >
+              Confirmar todos ({pendingVisible.length})
+            </Confirm>
+          </div>
+        </div>
         <section className="panel">
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead>
+                  <input
+                    aria-label="Seleccionar todos los patrocinadores"
+                    type="checkbox"
+                    checked={!!selectable.length && selectable.every((s) => picked.includes(s.id))}
+                    onChange={(e) => setPicked(e.target.checked ? selectable.map((s) => s.id) : [])}
+                  />
+                </TableHead>
                 <TableHead>Empresa</TableHead>
                 <TableHead>Nivel</TableHead>
                 <TableHead>Afinidad</TableHead>
@@ -99,8 +157,19 @@ export function Sponsors({ state, actor, action }: ViewProps) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {state.sponsors.map((s) => (
+              {visible.map((s) => (
                 <TableRow key={s.id}>
+                  <TableCell>
+                    <input
+                      aria-label={`Seleccionar a ${s.name}`}
+                      type="checkbox"
+                      disabled={s.status === "excluded"}
+                      checked={picked.includes(s.id)}
+                      onChange={(e) =>
+                        setPicked((p) => (e.target.checked ? [...p, s.id] : p.filter((id) => id !== s.id)))
+                      }
+                    />
+                  </TableCell>
                   <TableCell>
                     <strong>{s.name}</strong>
                     <small className="flex items-center gap-1 text-muted-foreground">
@@ -161,6 +230,9 @@ export function Sponsors({ state, actor, action }: ViewProps) {
               ))}
             </TableBody>
           </Table>
+          {!!state.sponsors.length && !visible.length && (
+            <EmptyState title="Sin resultados" description="Ningún patrocinador tiene este estado." />
+          )}
           {!state.sponsors.length && (
             <EmptyState
               title="La próxima alianza empieza aquí"

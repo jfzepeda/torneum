@@ -1238,6 +1238,39 @@ async function registerCommercial(post: Post, app: FastifyInstance) {
     return { ok: true, id: sponsorId };
   });
   post(
+    "/v1/sponsors/confirm",
+    z.object({ ids: z.array(id).min(1).max(200) }),
+    "admin",
+    async (b, a, db) => {
+      const t = await active(db, a!);
+      const ids = [...new Set(b.ids)];
+      const rows = (
+        await db.query(
+          "SELECT s.id,s.name,s.status,l.priority FROM sponsors s LEFT JOIN sponsor_levels l ON l.id=s.level_id WHERE s.tournament_id=$1 AND s.id=ANY($2::uuid[]) ORDER BY s.id FOR UPDATE OF s",
+          [t.id, ids],
+        )
+      ).rows;
+      ensure(rows.length === ids.length, "La selección contiene patrocinadores de otro torneo.", 400);
+      const excluded = rows.filter((s) => s.status === "excluded");
+      ensure(!excluded.length, `Hay patrocinadores excluidos en la selección: ${excluded.map((s) => s.name).join(", ")}.`, 400);
+      const pending = rows.filter((s) => s.status !== "won");
+      // Mismo tope que /v1/sponsors: el portal solo tiene espacio para 2 patrocinadores "presentado por".
+      const main =
+        (
+          await db.query(
+            "SELECT count(*)::int n FROM sponsors s JOIN sponsor_levels l ON l.id=s.level_id WHERE s.tournament_id=$1 AND s.status='won' AND l.priority=1",
+            [t.id],
+          )
+        ).rows[0].n + pending.filter((s) => s.priority === 1).length;
+      ensure(main <= 2, "Ya hay 2 patrocinadores principales (prioridad 1). Confirma menos patrocinadores de ese paquete.", 400);
+      if (pending.length) {
+        await db.query("UPDATE sponsors SET status='won' WHERE id=ANY($1::uuid[])", [pending.map((s) => s.id)]);
+        await audit(db, a!.organization_id, a!.id, "sponsor.confirm", t.id, null, { ids: pending.map((s) => s.id) });
+      }
+      return { ok: true, confirmed: pending.length };
+    },
+  );
+  post(
     "/v1/messages",
     z.object({
       sponsor_id: id,
