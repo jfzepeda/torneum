@@ -126,7 +126,7 @@ export function Registration({ slug }: { slug: string }) {
                 />
               )}
               <p className="text-sm text-muted-foreground">
-                Costo de inscripción:{" "}
+                Precio por pareja/equipo:{" "}
                 <strong>
                   {selected?.price_cents
                     ? `${money(selected.price_cents)} MXN`

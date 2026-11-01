@@ -171,7 +171,7 @@ function CategoryPayment({
       />
       {mode !== "free" && (
         <TextField
-          label="Precio por inscripción (MXN)"
+          label="Precio por pareja/equipo (MXN)"
           name="amount"
           type="number"
           min={0.01}
@@ -214,7 +214,9 @@ function CategoryPayment({
         Los cambios de precio se aplican a inscripciones nuevas.
       </p>
       {error && <p role="alert">{error}</p>}
-      <Submit busy={busy} label="Guardar cobro de categoría" />
+      <div className="mt-4">
+        <Submit busy={busy} label="Guardar cobro de categoría" />
+      </div>
     </form>
   );
 }

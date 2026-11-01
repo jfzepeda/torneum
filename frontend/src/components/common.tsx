@@ -5,7 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Field, FieldLabel } from "@/components/ui/field";
-import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@/components/ui/tooltip";
 import {
   Select,
   SelectContent,
@@ -303,7 +307,11 @@ export function Submit({
 }) {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" disabled={busy || pending} aria-busy={busy || pending}>
+    <Button
+      type="submit"
+      disabled={busy || pending}
+      aria-busy={busy || pending}
+    >
       {busy && (
         <LoaderCircle className="animate-spin" data-icon="inline-start" />
       )}

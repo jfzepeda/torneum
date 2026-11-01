@@ -15,7 +15,7 @@ import { PublicShell, usePublic } from "./shell";
 import { TournamentDetails } from "./tournament-details";
 import { PresentedBy, OfficialSponsors, SupportSponsors } from "./sponsor-sections";
 export function Portal({ slug }: { slug: string }) {
-  const { state, error, selectTournament } = usePublic(slug);
+  const { state, error, selectTournament, slugOf } = usePublic(slug);
   const [category, setCategory] = useState("all");
   if (!state)
     return (
@@ -52,18 +52,17 @@ export function Portal({ slug }: { slug: string }) {
   const name = (id: string | null) =>
     state.teams.find((t) => t.id === id)?.name || "Por definir";
   return (
-    <PublicShell slug={slug} orgName={state?.organization?.name}>
+    <PublicShell
+      slug={slug}
+      orgName={state?.organization?.name}
+      picker={{
+        value: t.id,
+        slug: slugOf(t.id),
+        options: state.tournaments.map((x) => ({ value: x.id, label: x.name })),
+        onChange: selectTournament,
+      }}
+    >
       <main className="public-main">
-        {state.tournaments.length > 1 && (
-          <div className="mb-4 max-w-xs">
-            <Choice
-              label="Torneo"
-              value={t.id}
-              onChange={selectTournament}
-              options={state.tournaments.map((x) => ({ value: x.id, label: x.name }))}
-            />
-          </div>
-        )}
         <section className="public-hero">
           <div>
             <Badge variant="outline">PÁDEL · EDICIÓN 2026</Badge>
@@ -83,7 +82,7 @@ export function Portal({ slug }: { slug: string }) {
               size="lg"
               disabled={!t.registration_open}
               nativeButton={false}
-              render={<Link href={`/${slug}/inscripcion?tournament=${t.id}`} />}
+              render={<Link href={`/${slug}/inscripcion?torneo=${slugOf(t.id)}`} />}
             >
               {t.registration_open
                 ? "Inscribir mi pareja"

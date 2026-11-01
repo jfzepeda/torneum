@@ -100,7 +100,7 @@ export function TournamentDetails({
                     {teams(c.id)}/{c.capacity} parejas
                   </span>
                 </div>
-                <b>{c.price_cents > 0 ? money(c.price_cents) : "Gratis"}</b>
+                <b>{c.price_cents > 0 ? `${money(c.price_cents)} por pareja/equipo` : "Gratis"}</b>
               </li>
             ))}
           </ul>

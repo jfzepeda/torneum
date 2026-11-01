@@ -88,3 +88,16 @@ export const labels: Record<string, string> = {
 export function tournamentLink(path: string, tournamentId?: string | null) {
   return tournamentId ? `${path}${path.includes("?") ? "&" : "?"}tournament=${encodeURIComponent(tournamentId)}` : path;
 }
+
+const slugify = (name: string) =>
+  name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "torneo";
+/** Slugs legibles por torneo (id → slug). La lista llega del más nuevo al más viejo: el más antiguo conserva el slug base y los repetidos reciben -2, -3… */
+export function tournamentSlugs(list: { id: string; name: string }[]) {
+  const seen = new Map<string, number>(), out = new Map<string, string>();
+  for (const t of [...list].reverse()) {
+    const base = slugify(t.name), n = (seen.get(base) || 0) + 1;
+    seen.set(base, n);
+    out.set(t.id, n > 1 ? `${base}-${n}` : base);
+  }
+  return out;
+}

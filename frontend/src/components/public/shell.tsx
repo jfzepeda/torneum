@@ -1,20 +1,24 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { get, API } from "@/lib/api";
+import { get, API, tournamentSlugs } from "@/lib/api";
 import { useBrand } from "@/lib/brand";
+import { Choice } from "../common";
 import type { State } from "@/lib/types";
 export function PublicShell({
   children,
   slug,
   orgName,
+  picker,
 }: {
   children: React.ReactNode;
   slug: string;
   orgName?: string;
+  picker?: { value: string; slug: string; options: { value: string; label: string }[]; onChange: (id: string) => void };
 }) {
+  const q = picker?.slug ? `?torneo=${picker.slug}` : "";
   return (
     <div className="public-shell">
       <header className="public-nav">
@@ -23,9 +27,14 @@ export function PublicShell({
           {orgName || "torneum"}.
         </Link>
         <nav>
-          <Link href={`/${slug}/portal`}>El torneo</Link>
-          <Link href={`/${slug}/patrocinadores`}>Patrocinadores</Link>
-          <Link href={`/${slug}/mi-pareja`}>Mi pareja</Link>
+          {picker && picker.options.length > 1 && (
+            <div className="w-48">
+              <Choice value={picker.value} onChange={picker.onChange} options={picker.options} />
+            </div>
+          )}
+          <Link href={`/${slug}/portal${q}`}>El torneo</Link>
+          <Link href={`/${slug}/patrocinadores${q}`}>Patrocinadores</Link>
+          <Link href={`/${slug}/mi-pareja${q}`}>Mi pareja</Link>
           <Button
             variant="outline"
             nativeButton={false}
@@ -49,13 +58,23 @@ export function usePublic(slug: string) {
   const [state, setState] = useState<State | null>(null),
     [error, setError] = useState(""),
     [chosen, setChosen] = useState<string | null>(() =>
-      typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("tournament"),
-    );
+      typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("torneo"),
+    ),
+    chosenId = useRef<string | null>(null);
   useBrand(state?.organization);
   const refresh = useCallback(async () => {
     try {
-      const q = chosen ? `?tournament_id=${encodeURIComponent(chosen)}` : "";
-      setState(await get<State>(`/v1/public/${slug}${q}`));
+      const fetchFor = (id: string | null) => get<State>(`/v1/public/${slug}${id ? `?tournament_id=${id}` : ""}`);
+      let next = await fetchFor(chosenId.current);
+      if (chosen && !chosenId.current) {
+        const slugs = tournamentSlugs(next.tournaments);
+        const match = next.tournaments.find((t) => slugs.get(t.id) === chosen);
+        if (match) {
+          chosenId.current = match.id;
+          if (next.tournament?.id !== match.id) next = await fetchFor(match.id);
+        }
+      }
+      setState(next);
       setError("");
     } catch (e) {
       setError((e as Error).message);
@@ -73,11 +92,20 @@ export function usePublic(slug: string) {
       clearInterval(timer);
     };
   }, [refresh]);
-  const selectTournament = useCallback((id: string) => {
-    setChosen(id);
-    const url = new URL(window.location.href);
-    url.searchParams.set("tournament", id);
-    window.history.replaceState(null, "", url);
-  }, []);
-  return { state, error, refresh, selectTournament };
+  const slugOf = useCallback(
+    (id: string) => tournamentSlugs(state?.tournaments || []).get(id) || "",
+    [state?.tournaments],
+  );
+  const selectTournament = useCallback(
+    (id: string) => {
+      const tournamentSlug = slugOf(id);
+      chosenId.current = id;
+      setChosen(tournamentSlug);
+      const url = new URL(window.location.href);
+      url.searchParams.set("torneo", tournamentSlug);
+      window.history.replaceState(null, "", url);
+    },
+    [slugOf],
+  );
+  return { state, error, refresh, selectTournament, slugOf };
 }
