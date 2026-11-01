@@ -59,24 +59,43 @@ export function ReuseResources({ state, actor, action }: ViewProps) {
   const packageIds = [...new Set([...selection.levels,...catalog.sponsors.filter(s => selection.sponsors.includes(s.id)).map(s => s.level_id).filter((id): id is string => !!id)])];
   const count = selection.categories.length + packageIds.length + selection.sponsors.length + selection.users.length;
   const conflicts = catalog.categories.filter(c => selection.categories.includes(c.id) && catalog.categories.some(other => other.tournament_id === target && other.name === c.name));
-  return <section className="panel settings-form">
-    <h2>Reutilizar de otro torneo</h2>
-    <p>Las categorías y paquetes se copian de forma independiente. Los patrocinadores y colaboradores conservan su identidad en el club.</p>
-    <FieldGroup>
+  const setGroup = (key:Kind, ids:string[]) => setSelection(s => ({...s,[key]:ids}));
+  return <section className="panel settings-form flex flex-col gap-6 p-6 md:p-8">
+    <header className="flex flex-col gap-1.5">
+      <h2 className="text-base font-semibold">Reutilizar de otro torneo</h2>
+      <p className="text-sm text-muted-foreground">Las categorías y paquetes se copian de forma independiente. Los patrocinadores y colaboradores conservan su identidad en el club.</p>
+    </header>
+    <FieldGroup className="gap-6">
       <FieldGroup className="grid gap-4 md:grid-cols-2">
         <Choice label="Torneo de origen" value={source} onChange={id => {setSource(id);setSelection(emptySelection());setError("");}} options={[{value:"none",label:"Seleccionar origen"},...catalog.tournaments.map(t => ({value:t.id,label:t.name+(t.status === "archived" ? " (archivado)" : "")}))]} />
         <Choice label="Torneo de destino" value={target} onChange={setTarget} options={[{value:"none",label:"Seleccionar destino"},...catalog.tournaments.filter(t => t.status !== "archived").map(t => ({value:t.id,label:t.name}))]} />
       </FieldGroup>
-      {source !== "none" && <div className="grid gap-6 md:grid-cols-2">{groups.map(group => <fieldset key={group.key} className="flex flex-col gap-3"><legend className="mb-3 font-medium">{group.title}</legend>{!group.items.length && <p className="text-sm text-muted-foreground">Sin elementos en este torneo.</p>}{group.items.map(item => <label className="flex items-center gap-3" key={item.id}><input type="checkbox" checked={selection[group.key].includes(item.id)} onChange={e => setSelection(s => ({...s,[group.key]:e.target.checked ? [...s[group.key],item.id] : s[group.key].filter(id => id !== item.id)}))} />{item.name}</label>)}</fieldset>)}</div>}
+      {source !== "none" && <div className="grid items-start gap-4 md:grid-cols-2">{groups.map(group => {
+        const ids = group.items.map(i => i.id), chosen = selection[group.key].length, all = !!ids.length && chosen === ids.length;
+        return <fieldset key={group.key} className="flex min-w-0 flex-col overflow-hidden rounded-lg border bg-background">
+          <legend className="sr-only">{group.title}</legend>
+          <div className="flex items-center justify-between gap-3 border-b bg-muted/40 px-4 py-2.5">
+            <div className="flex items-baseline gap-2"><span className="text-sm font-medium">{group.title}</span><span className="text-xs tabular-nums text-muted-foreground">{chosen}/{ids.length}</span></div>
+            <div className="flex gap-1">
+              <Button type="button" size="sm" variant="ghost" className="h-7 px-2.5 text-xs" disabled={!ids.length || all} onClick={() => setGroup(group.key,ids)}>Todos</Button>
+              <Button type="button" size="sm" variant="ghost" className="h-7 px-2.5 text-xs" disabled={!chosen} onClick={() => setGroup(group.key,[])}>Ninguno</Button>
+            </div>
+          </div>
+          <div className="flex max-h-72 flex-col overflow-y-auto p-1.5">
+            {!group.items.length && <p className="px-3 py-4 text-sm text-muted-foreground">Sin elementos en este torneo.</p>}
+            {group.items.map(item => <label className="flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 text-sm hover:bg-muted/60" key={item.id}><input className="size-4 shrink-0 accent-primary" type="checkbox" checked={selection[group.key].includes(item.id)} onChange={e => setSelection(s => ({...s,[group.key]:e.target.checked ? [...s[group.key],item.id] : s[group.key].filter(id => id !== item.id)}))} /><span className="min-w-0 truncate">{item.name}</span></label>)}
+          </div>
+        </fieldset>;
+      })}</div>}
       {!!count && <Alert><AlertDescription>
         Se copiarán {selection.categories.length} categorías y {packageIds.length} paquetes; se asignarán {selection.sponsors.length} patrocinadores y {selection.users.length} colaboradores a {catalog.tournaments.find(t => t.id === target)?.name || "un destino por seleccionar"}.
         {!!packageIds.length && " Se incluyen los paquetes vinculados a los patrocinadores seleccionados."}
         {" Las categorías comienzan sin participantes ni resultados y con sus ventanas de inscripción sin definir. Revisa sus fechas después de copiar. Los patrocinios comienzan como prospectos; los excluidos permanecen excluidos."}
       </AlertDescription></Alert>}
       {!!conflicts.length && <p role="status">Categorías que ya existen por nombre: {conflicts.map(c => c.name).join(", ")}. No se sobrescribirán.</p>}
-      <label className="flex items-center gap-3"><input type="checkbox" checked={skip} onChange={e => setSkip(e.target.checked)} />Omitir categorías que ya existen en el destino</label>
+      <label className="flex items-center gap-3 text-sm"><input className="size-4 accent-primary" type="checkbox" checked={skip} onChange={e => setSkip(e.target.checked)} />Omitir categorías que ya existen en el destino</label>
       {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
-      <Button disabled={busy || !count || source === "none" || target === "none" || source === target} onClick={async () => {
+      <Button className="self-start" disabled={busy || !count || source === "none" || target === "none" || source === target} onClick={async () => {
         setBusy(true);setError("");
         try { const result = await action("/v1/workspaces/reuse",{source_id:source,target_id:target,...selection,skip_conflicts:skip});setSelection(emptySelection()); const skipped=result.skipped as string[]; if(skipped?.length)toast.info(`Sin duplicar: ${skipped.join(", ")}`); }
         catch(e){setError((e as Error).message);}finally{setBusy(false);}
