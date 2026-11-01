@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { toast } from "sonner";
@@ -69,7 +69,7 @@ import {
   TableBody,
   TableCell,
 } from "@/components/ui/table";
-import { get, mutate, labels, date, time, place, client, API } from "@/lib/api";
+import { get, mutate, labels, date, time, place, API, tournamentLink } from "@/lib/api";
 import { useBrand } from "@/lib/brand";
 import type { State, Actor, Match } from "@/lib/types";
 import {
@@ -78,10 +78,12 @@ import {
   Submit,
   EmptyState,
   formValue,
+  Choice,
 } from "./common";
 import { Operations } from "./operations";
 import { CalendarView } from "./calendar";
 import { Sponsors } from "./sponsors";
+import { CreateTournament, ReuseResources } from "./workspaces";
 import { Administration } from "./administration";
 const GoogleRegistrations = dynamic(() => import("./google-registrations").then(m => m.GoogleRegistrations));
 const ChatPanel = dynamic(
@@ -107,6 +109,7 @@ const nav = [
       ["resultados", "Partidos y resultados", Flag],
       ["cuadro", "Cuadro de eliminación", Trophy],
       ["estadisticas", "Estadísticas", ChartNoAxesCombined],
+      ["ajustes", "Ajustes del torneo", Settings],
     ],
   },
   {
@@ -115,11 +118,13 @@ const nav = [
       ["solicitudes", "Solicitudes", Inbox],
       ["patrocinadores", "Patrocinadores", Handshake],
       ["colaboradores", "Colaboradores", UserRoundCog],
-      ["configuracion", "Configuración", Settings],
+      ["configuracion", "Configuración del club", Settings],
+      ["recursos", "Reutilizar recursos", Layers],
       ["archivo", "Torneos archivados", Archive],
     ],
   },
 ] as const;
+const globalViews = ["solicitudes", "patrocinadores", "colaboradores", "configuracion", "archivo", "recursos"];
 export function Dashboard({ slug }: { slug: string }) {
   const [state, setState] = useState<State | null>(null),
     [actor, setActor] = useState<Actor | null>(null),
@@ -127,10 +132,17 @@ export function Dashboard({ slug }: { slug: string }) {
     [error, setError] = useState(""),
     [view, setView] = useState("inicio"),
     [chat, setChat] = useState(false),
-    [search, setSearch] = useState("");
+    [search, setSearch] = useState(""),
+    [creating, setCreating] = useState(false);
+  const requestVersion = useRef(0);
+  const selectedId = useRef<string | null>(null);
   const refresh = useCallback(async () => {
+    const version = ++requestVersion.current;
+    const tournamentId = new URLSearchParams(location.search).get("tournament");
+    selectedId.current = tournamentId;
     try {
       const session = await get<{ actor: Actor | null }>("/v1/session");
+      if (version !== requestVersion.current) return;
       const currentActor = session.actor;
 
       if (
@@ -152,27 +164,39 @@ export function Dashboard({ slug }: { slug: string }) {
         return;
       }
 
-      const response = await client.GET("/v1/state");
-      if (response.error || !response.data)
-        throw new Error("No se pudo cargar el torneo.");
-      setState(response.data as unknown as State);
+      const response = await get<State>("/v1/state", tournamentId);
+      if (version !== requestVersion.current) return;
+      setState(response);
+      if (!tournamentId && response.tournament) {
+        selectedId.current = response.tournament.id;
+        const url = new URL(location.href);
+        url.searchParams.set("tournament", response.tournament.id);
+        history.replaceState(null, "", url);
+      }
       setError("");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error de conexión");
+      if (version === requestVersion.current) setError(e instanceof Error ? e.message : "Error de conexión");
     } finally {
-      setLoaded(true);
+      if (version === requestVersion.current) setLoaded(true);
     }
   }, [slug]);
   useEffect(() => {
     void refresh();
     const desired = new URLSearchParams(location.search).get("view");
     if (desired) setView(desired);
+    const onPopState = () => {
+      setView(new URLSearchParams(location.search).get("view") || "inicio");
+      setState(null); setLoaded(false); void refresh();
+    };
+    window.addEventListener("popstate", onPopState);
     const events = new EventSource(API + `/v1/events?org=${slug}`);
     events.addEventListener("update", () => void refresh());
     const interval = setInterval(() => {
       if (document.visibilityState === "visible") void refresh();
     }, 15000);
     return () => {
+      requestVersion.current++;
+      window.removeEventListener("popstate", onPopState);
       events.close();
       clearInterval(interval);
     };
@@ -180,17 +204,27 @@ export function Dashboard({ slug }: { slug: string }) {
   const go = (target: string) => {
     setView(target);
     setSearch("");
-    history.replaceState(null, "", `/${slug}?view=${target}`);
+    history.pushState(null, "", tournamentLink(`/${slug}?view=${target}`, selectedId.current));
+  };
+  const selectTournament = (id: string) => {
+    requestVersion.current++;
+    selectedId.current = id || null;
+    history.pushState(null, "", tournamentLink(`/${slug}?view=${view}`, id));
+    setState(null); setLoaded(false); setChat(false);
+    void refresh();
   };
   const action: Action = async (path, body) => {
+    const context = globalViews.includes(view) ? null : state?.tournament?.id;
     try {
-      const r = await mutate(path, body);
-      await refresh();
-      if (
-        !(body as { preview?: boolean; publish?: boolean })?.preview &&
-        (body as { publish?: boolean })?.publish !== false
-      )
-        toast.success("Cambio guardado");
+      const r = await mutate(path, body, context);
+      if (path === "/v1/tournaments/new" && r.id) {
+        setCreating(false); selectTournament(String(r.id));
+      } else if (path === "/v1/workspaces/archive" && (body as {tournament_id?: string}).tournament_id === selectedId.current) {
+        selectTournament("");
+      } else {
+        await refresh();
+      }
+      if (!(body as { preview?: boolean })?.preview && (body as { publish?: boolean })?.publish !== false) toast.success("Cambio guardado");
       return r;
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "No se pudo completar");
@@ -215,39 +249,12 @@ export function Dashboard({ slug }: { slug: string }) {
         participant={actor?.role === "participant"}
       />
     );
-  if (!state?.tournament) {
-    if (actor.role === "admin") {
-      return (
-        <InitializeTournament
-          action={action}
-          orgName={state?.organization?.name || ""}
-        />
-      );
-    }
-    return (
-      <main className="loading-page">
-        <Alert>
-          <AlertTitle>No hay un torneo activo</AlertTitle>
-          <AlertDescription>
-            {error ||
-              "El administrador del club aún no ha configurado ningún torneo activo."}
-          </AlertDescription>
-        </Alert>
-        <Button
-          onClick={() => {
-            toast.info("Reintentando…");
-            void refresh();
-          }}
-        >
-          Reintentar
-        </Button>
-      </main>
-    );
-  }
+  if (!state) return <main className="loading-page"><Alert variant="destructive"><AlertDescription>{error || "No se pudo cargar la organización."}</AlertDescription></Alert><Button onClick={() => selectTournament("")}>Volver a mis torneos</Button></main>;
+  const global = globalViews.includes(view);
   const pending = state.teams.filter((t) => t.status === "pending").length;
   const selected = nav.flatMap((g) => [...g.items]).find((i) => i[0] === view);
   const title = selected?.[1] || "Inicio";
-  const props = { state, actor, action };
+  const props = { state: global && state.management ? { ...state, ...state.management, tournament: null } : state, actor, action };
   return (
     <SidebarProvider
       style={{ "--sidebar-width": "15rem" } as React.CSSProperties}
@@ -258,16 +265,9 @@ export function Dashboard({ slug }: { slug: string }) {
             <span className="brand-mark">t</span>torneum
             <span className="brand-period">.</span>
           </Link>
-          <div className="tournament-selector">
-            <span className="tournament-icon">
-              <Trophy size={17} />
-            </span>
-            <div>
-              <strong>{state.tournament.name}</strong>
-              <small>{state.organization?.name}</small>
-            </div>
-            <ChevronRight size={14} />
-          </div>
+          <small className="text-muted-foreground">{state.organization.name}</small>
+          <Choice label="Torneo que gestionas" value={state.tournament?.id || "none"} onChange={selectTournament} options={state.tournaments.length ? state.tournaments.map(t => ({value:t.id,label:t.name})) : [{value:"none",label:"Sin torneos asignados"}]} />
+          {actor.role === "admin" && <Button variant="outline" size="sm" onClick={() => setCreating(true)}><Plus data-icon="inline-start" />Crear torneo</Button>}
         </SidebarHeader>
         <SidebarContent>
           {nav.map((group) => (
@@ -372,7 +372,7 @@ export function Dashboard({ slug }: { slug: string }) {
             <Button
               variant="outline"
               nativeButton={false}
-              render={<Link href={`/${slug}/portal`} />}
+              render={<Link href={tournamentLink(`/${slug}/portal`, state.tournament?.id)} />}
             >
               Ver portal público
               <ArrowUpRight data-icon="inline-end" />
@@ -400,19 +400,20 @@ export function Dashboard({ slug }: { slug: string }) {
                     "Administra cada detalle de tu torneo."}
               </p>
             </div>
-            {view === "inicio" ? (
+            {view === "inicio" && state.tournament ? (
               <Button
                 nativeButton={false}
-                render={<Link href={`/${slug}/inscripcion`} />}
+                render={<Link href={tournamentLink(`/${slug}/inscripcion`, state.tournament?.id)} />}
               >
                 <Plus data-icon="inline-start" />
                 Nueva inscripción
               </Button>
             ) : (
-              <Badge variant="outline">{state.tournament.name}</Badge>
+              <Badge variant="outline">{global ? "Todo el club" : state.tournament?.name || "Sin torneo"}</Badge>
             )}
           </div>
-          {view === "inicio" ? (
+          <div key={global ? view : `${state.tournament?.id}:${view}`}>
+          {!global && !state.tournament ? <EmptyState title="Crea tu primer torneo" description={actor.role === "admin" ? "Usa Crear torneo en el sidebar. La configuración del club ya está disponible." : "El administrador debe asignarte un torneo para comenzar."} /> : view === "recursos" ? <ReuseResources {...props} /> : view === "inicio" ? (
             <Overview {...props} go={go} />
           ) : [
               "inscripciones",
@@ -434,12 +435,14 @@ export function Dashboard({ slug }: { slug: string }) {
           ) : (
             <Administration {...props} view={view} />
           )}
+          </div>
           <footer className="workspace-footer">
             <span>Torneum · Cada partido cuenta.</span>
-            <span>{place(state.tournament)}</span>
+            <span>{global ? state.organization.name : state.tournament ? place(state.tournament) : ""}</span>
           </footer>
         </main>
       </SidebarInset>
+      <CreateTournament open={creating} onClose={() => setCreating(false)} action={action} orgName={state.organization.name} />
       <Sheet open={chat} onOpenChange={setChat}>
         <SheetContent>
           <SheetHeader>
@@ -451,6 +454,7 @@ export function Dashboard({ slug }: { slug: string }) {
           </SheetHeader>
           <div className="p-5">
             <ChatPanel
+              tournamentId={state.tournament?.id}
               agent="admin"
               slug={slug}
               enabled={state.integrations.chatkit}
@@ -474,83 +478,11 @@ const descriptions: Record<string, string> = {
   solicitudes: "Revisa y resuelve los cambios solicitados por los capitanes.",
   patrocinadores: "Construye alianzas que hagan crecer tu torneo.",
   colaboradores: "El equipo detrás de una buena organización.",
-  configuracion: "Los detalles que definen tu torneo.",
+  configuracion: "Marca, conexiones y cuenta de cobro compartidas por el club.",
+  ajustes: "Información e inscripción de este torneo.",
+  recursos: "Reutiliza la configuración y el equipo de otros torneos del club.",
   archivo: "La historia de tus torneos, en un solo lugar.",
 };
-function InitializeTournament({
-  action,
-  orgName,
-}: {
-  action: Action;
-  orgName: string;
-}) {
-  const [busy, setBusy] = useState(false);
-  const now = new Date();
-  const defStarts = new Date(now.getTime() + 14 * 86400000)
-    .toISOString()
-    .slice(0, 10);
-  const defEnds = new Date(now.getTime() + 16 * 86400000)
-    .toISOString()
-    .slice(0, 10);
-
-  return (
-    <main className="loading-page" style={{ maxWidth: 540 }}>
-      <div className="eyebrow">CONFIGURACIÓN INICIAL</div>
-      <h2>Bienvenido a Torneum</h2>
-      <p>
-        {orgName ? `Club: ${orgName}. ` : ""}Crea tu primer torneo para comenzar
-        a gestionar categorías, inscripciones y partidos.
-      </p>
-      <form
-        onSubmit={async (e) => {
-          e.preventDefault();
-          setBusy(true);
-          const d = new FormData(e.currentTarget);
-          try {
-            await action("/v1/tournaments/new", {
-              name: formValue(d, "name"),
-              venue: formValue(d, "venue"),
-              city: formValue(d, "city"),
-              starts_on: formValue(d, "starts_on"),
-              ends_on: formValue(d, "ends_on"),
-            });
-          } finally {
-            setBusy(false);
-          }
-        }}
-      >
-        <FieldGroup>
-          <TextField
-            label="Nombre del torneo"
-            name="name"
-            defaultValue="Torneo Inaugural"
-          />
-          <TextField
-            label="Sede / Club"
-            name="venue"
-            defaultValue={orgName || "Club Deportivo"}
-          />
-          <TextField label="Ciudad" name="city" required={false} />
-          <div className="grid grid-cols-2 gap-3">
-            <TextField
-              label="Fecha de inicio"
-              name="starts_on"
-              type="date"
-              defaultValue={defStarts}
-            />
-            <TextField
-              label="Fecha de fin"
-              name="ends_on"
-              type="date"
-              defaultValue={defEnds}
-            />
-          </div>
-          <Submit busy={busy} label="Crear primer torneo" />
-        </FieldGroup>
-      </form>
-    </main>
-  );
-}
 function Login({
   slug,
   onLogin,

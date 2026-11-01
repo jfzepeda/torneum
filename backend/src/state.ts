@@ -2,19 +2,27 @@ import type { Db } from "./db.js";
 import { ensure } from "./db.js";
 import { resolvedStandings } from "./padel.js";
 import type { Actor } from "./auth.js";
-export async function getState(db: Db, who: Actor | string, archiveId?:string) {
+import { accessibleTournaments, requireTournament } from "./workspace-access.js";
+import { managementState } from "./workspaces.js";
+export async function getState(db: Db, who: Actor | string, archiveId?:string, tournamentId?:string) {
   const actor = typeof who === "string" ? undefined : who;
   const orgId = typeof who === "string" ? who : who.organization_id;
   const organization = (await db.query("SELECT id,name,slug,brand_color,brand_bg,brand_card,brand_platform FROM organizations WHERE id=$1", [orgId])).rows[0];
-  const t = (
-    await db.query(
-      archiveId?"SELECT * FROM tournaments WHERE id=$1 AND organization_id=$2 AND status='archived'":"SELECT * FROM tournaments WHERE organization_id=$1 AND status<>'archived' ORDER BY created_at DESC LIMIT 1",
-      archiveId?[archiveId,orgId]:[orgId],
-    )
-  ).rows[0];
+  const internal = actor && actor.role !== "participant";
+  const management = internal ? await managementState(db, actor) : null;
+  const available = management?.tournaments || await accessibleTournaments(db, orgId);
+  const tournaments = available.filter(t => t.status !== "archived");
+  const selectedId = archiveId || actor?.tournament_id || tournamentId;
+  const t = selectedId
+    ? (internal ? await requireTournament(db, actor, selectedId) : available.find(t => t.id === selectedId && t.status !== "archived"))
+    : internal ? tournaments[0] : tournaments.length === 1 ? tournaments[0] : null;
+  if (selectedId) ensure(t, "Torneo no encontrado.", 404);
+  if (archiveId) ensure(t.status === "archived", "Torneo no archivado.", 404);
+  const workspace = { management, tournaments: internal ? tournaments : tournaments.map(({id,name,starts_on,ends_on,venue,city,status}) => ({id,name,starts_on,ends_on,venue,city,status})) };
   if (!t)
     return {
       organization,
+      ...workspace,
       tournament: null,
       categories: [],
       teams: [],
@@ -26,10 +34,10 @@ export async function getState(db: Db, who: Actor | string, archiveId?:string) {
       levels: [],
       requests: [],
       messages: [],
-      users: [],
+      users: management?.users || [],
       audit: [],
-      archives: [],
-      integrations: { chatkit: false, gmail: false, smtp: false },
+      archives: management?.archives || [],
+      integrations: management?.integrations || { chatkit: false, gmail: false, smtp: false },
     };
   if (actor)
     ensure(
@@ -37,7 +45,6 @@ export async function getState(db: Db, who: Actor | string, archiveId?:string) {
       "Organización no autorizada.",
       403,
     );
-  const internal = actor && actor.role !== "participant";
   const commercial = actor?.role === "admin";
   const results = await Promise.all([
     db.query("SELECT * FROM categories WHERE tournament_id=$1 ORDER BY name", [
@@ -131,6 +138,7 @@ export async function getState(db: Db, who: Actor | string, archiveId?:string) {
   ] = results;
   return {
     organization,
+    ...workspace,
     tournament: t,
     categories: categories.rows,
     teams: teams.rows,
@@ -149,9 +157,9 @@ export async function getState(db: Db, who: Actor | string, archiveId?:string) {
     levels: levels.rows,
     requests: requests.rows,
     messages: messages.rows,
-    users: users.rows,
-    audit: audit.rows,
-    archives: archives.rows,
+    users: management?.users || users.rows,
+    audit: commercial ? audit.rows : [],
+    archives: management?.archives || [],
     integrations: {
       chatkit:
         !!process.env.OPENAI_API_KEY &&

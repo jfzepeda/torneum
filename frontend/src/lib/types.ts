@@ -14,6 +14,7 @@ export type Actor = {
   team_id?: string;
 };
 export type Category = {
+  tournament_id?: string;
   price_cents: number;
   payment_mode: string;
   participant_count: number;
@@ -37,6 +38,7 @@ export type Category = {
   };
 };
 export type Team = {
+  tournament_id?: string;
   image_id?: string;
   notifications?: boolean;
   id: string;
@@ -81,6 +83,8 @@ export type Court = {
   enabled: boolean;
 };
 export type Sponsor = {
+  tournament_id?: string;
+  contact_id?: string;
   id: string;
   name: string;
   website: string;
@@ -94,6 +98,7 @@ export type Sponsor = {
   evidence: { url: string; note: string; date: string; confidence: string }[];
 };
 export type Message = {
+  tournament_id?: string;
   id: string;
   sponsor_id: string;
   sponsor_name: string;
@@ -120,6 +125,8 @@ export type Standing = {
   tie: boolean;
 };
 export type State = {
+  tournaments: Tournament[];
+  management?: Management | null;
   organization: {
     id: string;
     name: string;
@@ -156,6 +163,7 @@ export type State = {
   standings: { group_id: string; rows: Standing[] }[];
   sponsors: Sponsor[];
   levels: {
+    tournament_id?: string;
     id: string;
     name: string;
     amount: string;
@@ -165,6 +173,7 @@ export type State = {
     logo_size: number;
   }[];
   requests: {
+    tournament_id?: string;
     id: string;
     team_name: string;
     kind: string;
@@ -175,6 +184,7 @@ export type State = {
   }[];
   messages: Message[];
   users: {
+    tournament_ids?: string[];
     id: string;
     name: string;
     email: string;
@@ -191,3 +201,6 @@ export type State = {
   archives: { id: string; name: string; starts_on: string }[];
   integrations: { chatkit: boolean; gmail: boolean; smtp: boolean };
 };
+
+export type Tournament = NonNullable<State["tournament"]>;
+export type Management = Pick<State, "categories" | "sponsors" | "levels" | "users" | "requests" | "messages" | "archives" | "integrations"> & { tournaments: Tournament[] };

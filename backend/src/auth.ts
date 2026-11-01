@@ -6,6 +6,7 @@ import {
 } from "node:crypto";
 import type { FastifyRequest } from "fastify";
 import { pool, DomainError, type Db } from "./db.js";
+import { authorizeWorkspaceRequest } from "./workspace-access.js";
 export type Role =
   | "admin"
   | "registration"
@@ -20,6 +21,7 @@ export type Actor = {
   role: Role;
   name: string;
   team_id?: string;
+  tournament_id?: string;
 };
 export const hashToken = (token: string) =>
   createHash("sha256").update(token).digest("hex");
@@ -67,7 +69,7 @@ export async function getActor(
   );
   const s = rows[0];
   if (!s || (!s.role && !s.team_id)) return;
-  return {
+  const actor: Actor = {
     id: s.user_id || s.team_id,
     organization_id: s.organization_id,
     organization_slug: s.organization_slug,
@@ -75,6 +77,8 @@ export async function getActor(
     name: s.name || s.team_name,
     team_id: s.team_id || undefined,
   };
+  await authorizeWorkspaceRequest(req, actor);
+  return actor;
 }
 export async function resolveOrg(
   db: Db,

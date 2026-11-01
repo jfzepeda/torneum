@@ -225,7 +225,7 @@ function localDate(value?: string | null) {
     .toISOString()
     .slice(0, 16);
 }
-export function PaymentSettings({ state }: { state: State }) {
+export function PaymentSettings({ state, scope = "tournament" }: { state: State; scope?: "club" | "tournament" }) {
   const [account, setAccount] = useState<{
     connected: boolean;
     charges_enabled?: boolean;
@@ -238,13 +238,11 @@ export function PaymentSettings({ state }: { state: State }) {
   >([]);
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
-  const tournament = state.tournament!.id;
+  const tournament = scope === "tournament" ? state.tournament?.id : undefined;
   const load = useCallback(async () => {
     const [a, r] = await Promise.all([
       get<NonNullable<typeof account>>("/v1/stripe/status"),
-      get<{ registrations: typeof registrations }>(
-        `/v1/tournaments/${tournament}/payments`,
-      ),
+      tournament ? get<{ registrations: typeof registrations }>(`/v1/tournaments/${tournament}/payments`, tournament) : Promise.resolve({registrations: []}),
     ]);
     setAccount(a);
     setRegistrations(r.registrations);
@@ -254,8 +252,8 @@ export function PaymentSettings({ state }: { state: State }) {
   }, [load]);
   return (
     <section className="space-y-5">
-      <div className="panel p-6 space-y-3">
-        <h2>Inscripciones y pagos</h2>
+      {scope === "club" && <div className="panel p-6 space-y-3">
+        <h2>Cuenta de cobro del club</h2>
         <p>
           Los cobros llegan a la cuenta Stripe del organizador. Torneum no
           agrega comisión. Stripe aplica sus propias tarifas.
@@ -335,11 +333,11 @@ export function PaymentSettings({ state }: { state: State }) {
           Actualizar estado
         </Button>
         {error && <p role="alert">{error}</p>}
-      </div>
-      {state.categories.map((c) => (
+      </div>}
+      {scope === "tournament" && state.categories.map((c) => (
         <CategoryPayment key={JSON.stringify(c)} category={c} saved={load} />
       ))}
-      <div className="panel p-6 space-y-3">
+      {scope === "tournament" && <div className="panel p-6 space-y-3">
         <h3>Pagos del torneo</h3>
         {!registrations.length && (
           <p className="text-sm text-muted-foreground">
@@ -386,7 +384,7 @@ export function PaymentSettings({ state }: { state: State }) {
               )}
           </div>
         ))}
-      </div>
+      </div>}
     </section>
   );
 }

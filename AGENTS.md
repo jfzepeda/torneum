@@ -1,35 +1,15 @@
 <claude-mem-context>
 # Memory Context
 
-# [torneum] recent context, 2026-10-25 1:10pm CST
+# [torneum] recent context, 2026-11-01 12:35pm CST
 
 Legend: 🎯session 🔴bugfix 🟣feature 🔄refactor ✅change 🔵discovery ⚖️decision 🚨security_alert 🔐security_note
 Format: ID TIME TYPE TITLE
 Fetch details: get_observations([IDs]) | Search: mem-search skill
 
-Stats: 50 obs (16,877t read) | 398,055t work | 96% savings
+Stats: 50 obs (16,379t read) | 336,258t work | 95% savings
 
 ### Oct 25, 2026
-31487 11:37a 🟣 Torneum Full Stack Verified End-to-End — Public API, Images, Sponsor Logos, and Frontend All Working
-31488 11:46a 🔵 Sponsor Logo Image Structure in torneum Frontend
-31489 11:49a 🟣 Tournament Details and Venue Section Added
-31490 " 🔵 Torneum Public Portal Structure and Tournament Type Shape
-31491 " 🔵 Torneum Portal Layout and Sponsor Section CSS Patterns
-31492 " 🟣 TournamentDetails Section Added to Public Portal
-31493 11:51a ✅ TournamentDetails Section Restyled to Full-Bleed Layout
-31494 11:53a ✅ TournamentDetails CSS Reverted from Full-Bleed to Contained Layout
-31495 " ⚖️ Reference Design Source for TournamentDetails Section
-31496 12:03p 🔵 Backend Structure and Git Status
-31497 " 🔵 Tournament Table Schema and Update Route
-31498 " 🔵 Admin Settings Form Structure and Migration System
-31499 12:04p ⚖️ Adding `highlights` jsonb Field to Tournaments Instead of venue_address
-31500 " ⚖️ Full-Stack Highlights Feature Wired: Types, Public Portal, Admin Form
-31501 " 🔵 Migration Applied, OpenAPI Regenerated, Backend Tests Pass
-31502 " 🔵 Demo Highlights Seeded into Local Dev Tournament
-31503 " 🔵 Public API Confirmed Returning highlights Array
-31504 12:05p ⚖️ Fixed .tournament-details to Strict 2-Column Grid
-31505 12:06p 🔵 Venue Field Used in 4 Places in public.tsx
-31506 " ⚖️ Venue Field Split by " · " Separator for Better Display
 31507 12:08p 🔵 Venue TextField Appears in 3 Locations Across Frontend
 31508 " 🔵 Dashboard Venue Form is the Initial Tournament Setup Screen
 31509 " ⚖️ Venue Split into Two Form Fields: "Club / Sede" + "Ciudad" — No DB Schema Change
@@ -40,7 +20,6 @@ Stats: 50 obs (16,877t read) | 398,055t work | 96% savings
 31524 12:22p 🟣 User Requested Shadow/Relief on Official Sponsor Cards
 31525 " 🔵 Sponsor Card Markup and Container Structure Located
 31526 " 🟣 Sponsor Cards Get Box-Shadow Relief and Hover Lift Animation
-S5356 Create a hydrated Padelón tournament in torneum using real sponsor and tournament data from ~/Developer/Web/padelon — no fabricated participants (Oct 25 at 12:26 PM)
 31533 12:28p 🔵 Padelon Tournament Hydration Task Initiated
 31534 " 🔵 Padelon Project Structure and Content Extracted
 31535 " 🔵 Padelon Tournament Detailed Data Extracted
@@ -51,17 +30,11 @@ S5356 Create a hydrated Padelón tournament in torneum using real sponsor and to
 31540 " 🟣 Padelon Hydration Script Written
 31541 " 🟣 Padelon Tournament Successfully Hydrated into Torneum DB
 31542 " 🟣 Padelon Tournament Live and Verified on Both API and Frontend
-S5357 Refactor SponsorsPage from public.tsx into a separate file in the Torneum frontend (Oct 25 at 12:29 PM)
 31543 12:38p 🔄 SponsorsPage Extracted to Separate File
 31544 " 🔵 SponsorsPage vs Sponsors: Two Distinct Components in Torneum Frontend
-S5358 SponsorLogo in presented.map should have no fixed width — only 280px height, free width (Oct 25 at 12:38 PM)
 31545 12:39p ✅ SponsorLogo Width Removed from presented.map Items
 31546 " 🔵 SponsorLogo CSS Constrains Width Despite width:auto
-S5360 Refactorizar public.tsx por secciones + absorber sponsors-public.tsx + añadir botón "Inscribirme" en TournamentDetails (Oct 25 at 12:40 PM)
 31547 12:43p 🔄 public.tsx refactor: sponsors section extracted to sponsors-public.tsx
-S5361 Refactorizar public.tsx por secciones — sesión completada con absorción de sponsors-public.tsx y botón "Inscribirme" en TournamentDetails (Oct 25 at 12:43 PM)
-S5359 Refactorizar frontend/src/components/public.tsx por secciones — dividir en carpeta con un archivo por sección (Oct 25 at 12:43 PM)
-S5362 Refactorizar public.tsx por secciones — completado, más botón "Inscribirme" reposicionado dentro del cuadro de categorías en TournamentDetails (Oct 25 at 12:43 PM)
 S5363 Production readiness assessment for Torneum — how far from deploying to production? (Oct 25 at 12:47 PM)
 31548 12:48p 🔵 Torneum Frontend Stack and Environment Audit
 31549 " 🔵 No Deployment Infrastructure Configured for Torneum
@@ -70,23 +43,49 @@ S5363 Production readiness assessment for Torneum — how far from deploying to 
 S5364 Cloudflare deployment feasibility analysis for Torneum — can the full stack deploy on Cloudflare? (Oct 25 at 12:49 PM)
 31552 1:02p ⚖️ Cloudflare Deployment Evaluated as Target Platform for Torneum
 S5365 Vercel + Railway selected as deployment platform for Torneum — deployment plan defined (Oct 25 at 1:02 PM)
-**Investigated**: Vercel compatibility with Next.js frontend, Railway compatibility with Fastify backend (Node.js, sharp, nodemailer, outbox, Google sync), Railway managed PostgreSQL networking, cost implications of Vercel Hobby vs Pro, cookie domain requirements for sameSite:lax across Vercel+Railway, trustProxy requirement for Railway's reverse proxy, and migration strategy for pre-deploy.
+S5693 Localizar recursos de patrocinadores de Padelón en la DB local de Torneum — completado con lista completa de 32 sponsors (Oct 25 at 1:02 PM)
+### Nov 1, 2026
+33423 12:14p 🔵 Proyecto Torneum: estructura backend identificada
+33424 " 🔵 Padelon es un sitio estático separado de Torneum
+33425 " 🔵 Torneum backend: estructura de código fuente y migraciones SQL
+33426 12:15p 🔵 Schema de patrocinadores en migrations/001_core.sql
+33427 " 🔵 33 patrocinadores de Padelón Series 2026 localizados en la DB local
+S5692 Localizar los recursos de los patrocinadores de Padelón en la base de datos local de Torneum (Nov 1 at 12:15 PM)
+S5694 Localizar y migrar los recursos de patrocinadores de Padelón a producción — 32 sponsors copiados de DB local a Railway (Nov 1 at 12:15 PM)
+33428 12:16p 🔵 La DB de producción (Railway) está vacía de sponsors vs DB local con 32
+33429 " 🟣 32 patrocinadores de Padelón migrados de DB local a producción (Railway)
+S5695 Sincronización completa de datos de padelon (sponsors + branding) de DB local a producción Railway (Nov 1 at 12:16 PM)
+33430 12:18p 🔵 Schema de branding de organizaciones en migration 009_branding_city.sql
+33431 " 🔵 Colores de marca de padelon difieren entre local y producción
+33432 " ✅ Colores de marca de padelon sincronizados de local a producción
+S5698 Cómo borrar una categoría en Torneum — no existe endpoint DELETE, investigación de dependencias FK (Nov 1 at 12:18 PM)
+33438 12:24p 🔵 No existe endpoint de borrado de categorías en Torneum
+33439 " 🔵 Tablas dependientes de categories: groups, matches y teams tienen FK hacia ella
+S5697 Cómo borrar una categoría en Torneum — investigación de rutas y dependencias FK (Nov 1 at 12:24 PM)
+33440 12:25p 🔵 Aislamiento multitenant de categorías implementado en código, no en RLS de Postgres
+33441 " 🔵 Patrón de rutas de Torneum usa helper post() tipado; no existe helper delete()
+33442 " 🔵 Ruta /v1/categories/update con guardas de integridad y patrón idempotente
+33443 " 🔵 FK compuestas de categories incluyen organization_id — 5 tablas dependientes confirmadas
+33444 12:26p 🟣 Endpoint POST /v1/categories/delete implementado en backend/src/app.ts
+33445 " 🟣 Botón "Eliminar" categoría agregado al frontend con confirmación y guardia client-side
+33446 " 🟣 Backend compilado y OpenAPI regenerado con ruta /v1/categories/delete
+33447 " 🔵 openapi-typescript@7 incompatible con TypeScript 7 en Node.js 24
+S5699 Implementar borrado de categorías en Torneum — endpoint backend + botón frontend completados, pendiente commit y deploy (Nov 1 at 12:27 PM)
+**Investigated**: Rutas existentes de categorías, dependencias FK en 5 tablas (teams, groups, matches, tournament_registrations, google_form_jobs), patrón RPC-over-POST del proyecto, sistema de permisos y auditoría, función bulkVerify del frontend.
 
-**Learned**: - Vercel + Railway is the optimal deployment path: no code rewrites needed, all Node.js dependencies (sharp, nodemailer, SMTP) work natively on Railway
-    - Next.js output:"standalone" is unnecessary on Vercel — Vercel handles Next.js natively without it
-    - Railway uses Nixpacks for builds; pnpm build + pnpm start works without a Dockerfile
-    - Railway's reverse proxy requires trustProxy: true in Fastify — without it, rate limiting sees one IP for all users
-    - Cookie sameSite:"lax" requires frontend and backend to share a registrable domain (e.g., app.domain.com + api.domain.com) — mismatched domains will break login
-    - Background jobs (outbox, Google Forms sync) run in-process — multiple Railway replicas would cause duplicate execution; single instance required at launch
-    - pnpm migrate must run as a pre-deploy step in Railway before the backend starts
-    - Vercel Hobby plan prohibits commercial use — Vercel Pro (~$20/month) required for a production product
-    - Railway costs approximately $5–15/month at this scale
-    - Postgres on Railway shares a private network with the backend — no connection pooler or Hyperdrive needed
+**Learned**: - Torneum usa POST para todas las mutaciones (patrón RPC-over-POST), no HTTP DELETE/PATCH
+    - La función ensure() usa status=409 por defecto; 404 requiere pasarse explícitamente
+    - openapi-typescript@7.13.0 es incompatible con TypeScript 7.0.2 en Node.js v24 — ts.factory aparece undefined; el fallo preexistía antes de este cambio
+    - Los 33 tests del backend se saltean por requerir una DB de pruebas; los 20 que corren pasan
+    - La guardia de borrado cubre también equipos rejected/withdrawn (any team con category_id, no solo activos)
 
-**Completed**: Platform decision finalized: Vercel (frontend) + Railway (backend + PostgreSQL). Five-step deployment plan defined. Three required code changes identified before deployment: add trustProxy to Fastify, add pnpm migrate to Railway start sequence, verify CORS with production domains. User was offered the choice to start with the code changes or proceed through Railway/Vercel dashboards independently.
+**Completed**: 1. POST /v1/categories/delete en backend/src/app.ts: verifica propiedad (org_id), cuenta dependencias en 5 tablas, borra si vacía, registra en audit_events como category.delete
+    2. Botón "Eliminar" (destructive) en frontend/src/components/operations.tsx: solo visible si !draw_published && !teams asociados, con confirmación window.confirm
+    3. bulkVerify refactorizada para aceptar body opcional
+    4. Backend compila (BUILD_OK), openapi.json regenerado con /v1/categories/delete, frontend typecheck pasa (TYPES_OK), 20/53 tests pasan
 
-**Next Steps**: Awaiting user confirmation to begin code changes: add trustProxy:true to Fastify server config, update Railway start command to run migrations before server start, and audit CORS + FRONTEND_URL config for production domains. These are the pre-deployment code changes needed before platform setup.
+**Next Steps**: Probar manualmente en local (crear categoría vacía y borrarla; intentar borrar una con parejas para verificar el bloqueo). Hacer commit. Desplegar a producción si la prueba es exitosa. Opcionalmente: corregir la incompatibilidad de openapi-typescript para regenerar api-schema.d.ts.
 
 
-Access 398k tokens of past work via get_observations([IDs]) or mem-search skill.
+Access 336k tokens of past work via get_observations([IDs]) or mem-search skill.
 </claude-mem-context>

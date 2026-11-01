@@ -29,6 +29,8 @@ import {
   resolveOrg,
   type Actor,
 } from "./auth.js";
+import { activeTournament } from "./workspace-access.js";
+import { registerWorkspaces } from "./workspaces.js";
 import { getState } from "./state.js";
 import {
   draw,
@@ -190,7 +192,8 @@ export async function buildApp() {
     },
     async (req) => {
       const p = z.object({ slug }).parse(req.params);
-      return getState(pool, (await resolveOrg(pool, p.slug)).id);
+      const q = z.object({ tournament_id: id.optional() }).parse(req.query);
+      return getState(pool, (await resolveOrg(pool, p.slug)).id, undefined, q.tournament_id);
     },
   );
   app.get('/v1/archive/:id',async req=>{const actor=await getActor(req);ensure(actor&&actor.role!=='participant','Se requiere una sesión de colaborador.',403);const params=z.object({id}).parse(req.params);return getState(pool,actor,params.id);});
@@ -240,7 +243,7 @@ export async function buildApp() {
                 [actor.organization_id, actor.id, key],
               )
             ).rows[0];
-            const requestHash = hashToken(path + JSON.stringify(body));
+            const requestHash = hashToken(path + (actor.tournament_id || "") + JSON.stringify(body));
             if (old) {
               ensure(
                 old.request_hash === requestHash,
@@ -335,17 +338,19 @@ export async function buildApp() {
         [hashToken(token), v.organization_id, v.team_id],
       );
       setSession(reply, token);
-      return { ok: true };
+      return { ok: true, tournament_id: v.tournament_id };
     },
   );
-  post("/v1/magic-link", z.object({ slug, email }), null, async (b, _a, db) => {
+  post("/v1/magic-link", z.object({ slug, email, tournament_id: id.optional() }), null, async (b, _a, db) => {
     const org = await resolveOrg(db, b.slug);
-    const t = (
+    const matches = (
       await db.query(
-        "SELECT team.* FROM teams team JOIN tournaments t ON t.id=team.tournament_id WHERE team.organization_id=$1 AND team.email=$2 AND t.status<>'archived'",
-        [org.id, b.email],
+        "SELECT team.* FROM teams team JOIN tournaments t ON t.id=team.tournament_id WHERE team.organization_id=$1 AND team.email=$2 AND t.status<>'archived' AND ($3::uuid IS NULL OR t.id=$3)",
+        [org.id, b.email, b.tournament_id || null],
       )
-    ).rows[0];
+    ).rows;
+    ensure(matches.length <= 1, "Selecciona el torneo para recuperar tu acceso.",400);
+    const t = matches[0];
     if (t && process.env.SMTP_URL) {
       const token = newToken();
       await db.query(
@@ -436,8 +441,8 @@ export async function buildApp() {
       const rows = (
         await db.query(
           `UPDATE teams SET verified_at=now(),status=CASE WHEN (SELECT auto_approve FROM tournaments WHERE id=teams.tournament_id) AND NOT EXISTS(SELECT 1 FROM tournament_registrations WHERE team_id=teams.id AND status<>'CONFIRMED') THEN 'approved' ELSE 'pending' END
-           WHERE organization_id=$1 AND status='verification' AND verified_at IS NULL RETURNING id`,
-          [a!.organization_id],
+           WHERE organization_id=$1 AND tournament_id=$2 AND status='verification' AND verified_at IS NULL RETURNING id`,
+          [a!.organization_id, (await active(db,a!)).id],
         )
       ).rows;
       await audit(
@@ -464,8 +469,8 @@ export async function buildApp() {
       );
       const rows = (
         await db.query(
-          "SELECT id FROM teams WHERE organization_id=$1 AND status='verification' AND verified_at IS NULL",
-          [a!.organization_id],
+          "SELECT id FROM teams WHERE organization_id=$1 AND tournament_id=$2 AND status='verification' AND verified_at IS NULL",
+          [a!.organization_id, (await active(db,a!)).id],
         )
       ).rows;
       for (const t of rows) {
@@ -972,50 +977,7 @@ export async function buildApp() {
       return { ok: true };
     },
   );
-  post(
-    "/v1/tournaments/new",
-    z.object({
-      name: short,
-      venue: short,
-      city: z.string().trim().max(150).default(""),
-      starts_on: z.iso.date(),
-      ends_on: z.iso.date(),
-      archive_current: z.literal(true),
-    }),
-    "admin",
-    async (b, a, db) => {
-      ensure(b.ends_on >= b.starts_on, "Fechas inválidas.", 400);
-      await db.query("SELECT id FROM organizations WHERE id=$1 FOR UPDATE", [
-        a!.organization_id,
-      ]);
-      const current = await active(db, a!);
-      const unfinished = await db.query(
-        "SELECT 1 FROM matches WHERE tournament_id=$1 AND status<>'finished' LIMIT 1",
-        [current.id],
-      );
-      ensure(!unfinished.rowCount, "Hay partidos sin finalizar.");
-      await db.query(
-        "UPDATE tournaments SET status='archived',registration_open=false WHERE id=$1",
-        [current.id],
-      );
-      const t = (
-        await db.query(
-          "INSERT INTO tournaments(organization_id,name,venue,city,starts_on,ends_on) VALUES($1,$2,$3,$4,$5,$6) RETURNING id",
-          [a!.organization_id, b.name, b.venue, b.city, b.starts_on, b.ends_on],
-        )
-      ).rows[0];
-      await audit(
-        db,
-        a!.organization_id,
-        a!.id,
-        "tournament.archive",
-        current.id,
-        null,
-        { next: t.id },
-      );
-      return { ok: true };
-    },
-  );
+  registerWorkspaces(post);
   post(
     "/v1/users",
     z.object({
@@ -1093,16 +1055,7 @@ export async function buildApp() {
   await registerPaymentRoutes(app);
   return app;
 }
-async function active(db: Db, a: Actor) {
-  const t = (
-    await db.query(
-      "SELECT * FROM tournaments WHERE organization_id=$1 AND status<>'archived' FOR UPDATE",
-      [a.organization_id],
-    )
-  ).rows[0];
-  ensure(t, "No hay torneo activo.", 404);
-  return t;
-}
+const active = activeTournament;
 type Post = <T extends z.ZodType>(
   path: string,
   schema: T,
@@ -1120,6 +1073,7 @@ async function registerCommercial(post: Post, app: FastifyInstance) {
   post(
     "/v1/levels",
     z.object({
+      tournament_id: id.optional(),
       name: short,
       amount: z.number().min(0),
       benefits: z.string().max(2000),
@@ -1129,7 +1083,7 @@ async function registerCommercial(post: Post, app: FastifyInstance) {
     }),
     "admin",
     async (b, a, db) => {
-      const t = await active(db, a!);
+      const t = await active(db, {...a!, tournament_id: b.tournament_id || a!.tournament_id});
       await db.query(
         "INSERT INTO sponsor_levels(organization_id,tournament_id,name,amount,benefits,zones,priority,logo_size) VALUES($1,$2,$3,$4,$5,$6,$7,$8)",
         [
@@ -1147,6 +1101,7 @@ async function registerCommercial(post: Post, app: FastifyInstance) {
     },
   );
   const sponsorInput = z.object({
+    tournament_id: id.optional(),
     id: id.optional(),
     name: short,
     website: safeUrl,
@@ -1182,7 +1137,7 @@ async function registerCommercial(post: Post, app: FastifyInstance) {
     }),
   });
   post("/v1/sponsors", sponsorInput, "admin", async (b, a, db) => {
-    const t = await active(db, a!);
+    const t = await active(db, {...a!, tournament_id: b.tournament_id || a!.tournament_id});
     if (b.level_id) {
       const level = (
         await db.query(
@@ -1256,6 +1211,9 @@ async function registerCommercial(post: Post, app: FastifyInstance) {
         )
       ).rows[0].id;
     }
+    const contact = (await db.query("SELECT contact_id FROM sponsors WHERE id=$1", [sponsorId])).rows[0].contact_id;
+    await db.query("UPDATE sponsor_contacts SET name=$2,website=$3,email=$4,phone=$5,logo_url=$6 WHERE id=$1", [contact,b.name,b.website,b.email,b.phone,b.logo_url]);
+    await db.query("UPDATE sponsors SET name=$2,website=$3,email=$4,phone=$5,logo_url=$6 WHERE contact_id=$1", [contact,b.name,b.website,b.email,b.phone,b.logo_url]);
     if (b.status === "excluded")
       await db.query(
         "UPDATE messages SET status='cancelled' WHERE sponsor_id=$1 AND status IN ('draft','approved','queued','failed')",
@@ -1519,7 +1477,7 @@ async function registerCommercial(post: Post, app: FastifyInstance) {
     null,
     async (b, a, db) => {
       if (b.tool === "public_state") {
-        if (a) return getState(db, a.organization_id);
+        if (a) return getState(db, a.organization_id, undefined, a.tournament_id);
         ensure(b.slug, "Indica el club.", 400);
         return getState(db, (await resolveOrg(db, b.slug)).id);
       }

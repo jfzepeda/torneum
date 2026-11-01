@@ -5,10 +5,11 @@ export const client = createClient<paths>({
   baseUrl: API,
   credentials: "include",
 });
-export async function get<T>(path: string): Promise<T> {
+export async function get<T>(path: string, tournamentId?: string | null): Promise<T> {
   const response = await fetch(API + path, {
     credentials: "include",
     cache: "no-store",
+    headers: tournamentId ? { "X-Tournament-Id": tournamentId } : {},
   });
   const result = await response.json().catch(() => ({}));
   if (response.status === 404 && path.startsWith("/v1/public/"))
@@ -22,12 +23,14 @@ export async function get<T>(path: string): Promise<T> {
 export async function mutate(
   path: string,
   body: unknown,
+  tournamentId?: string | null,
 ): Promise<Record<string, unknown>> {
   const response = await fetch(API + path, {
     method: "POST",
     credentials: "include",
     headers: {
       "Content-Type": "application/json",
+      ...(tournamentId ? { "X-Tournament-Id": tournamentId } : {}),
       "Idempotency-Key": crypto.randomUUID(),
     },
     body: JSON.stringify(body),
@@ -81,3 +84,7 @@ export const labels: Record<string, string> = {
   viewer: "Solo lectura",
   participant: "Capitán",
 };
+
+export function tournamentLink(path: string, tournamentId?: string | null) {
+  return tournamentId ? `${path}${path.includes("?") ? "&" : "?"}tournament=${encodeURIComponent(tournamentId)}` : path;
+}

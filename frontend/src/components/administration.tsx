@@ -1,4 +1,5 @@
 "use client";
+import { CollaboratorAssignments } from "./workspaces";
 import { PaymentSettings } from "./payments";
 import {ArchiveDetails} from "./archive";
 import { useState } from "react";
@@ -171,15 +172,15 @@ export function Administration({
   const [open, setOpen] = useState(false),
     [busy, setBusy] = useState(false),
     [role, setRole] = useState("viewer"),
-    [auto, setAuto] = useState(state.tournament!.auto_approve),
+    [auto, setAuto] = useState(state.tournament?.auto_approve || false),
     [registration, setRegistration] = useState(
-      state.tournament!.registration_open,
+      state.tournament?.registration_open || false,
     ),
     [icons, setIcons] = useState(() =>
-      [0, 1, 2].map((i) => state.tournament!.highlights?.[i]?.icon || "trophy"),
+      [0, 1, 2].map((i) => state.tournament?.highlights?.[i]?.icon || "trophy"),
     );
   const admin = actor.role === "admin";
-  const t = state.tournament!;
+  const t = state.tournament;
   if (!admin && view !== "archivo")
     return (
       <Alert>
@@ -229,6 +230,7 @@ export function Administration({
                   </span>
                 </TableHead>
                 <TableHead>Estado</TableHead>
+                <TableHead>Torneos asignados</TableHead>
                 <TableHead>Acceso</TableHead>
               </TableRow>
             </TableHeader>
@@ -245,6 +247,7 @@ export function Administration({
                   >
                     {u.active ? "Activo" : "Desactivado"}
                   </TableCell>
+                  <TableCell><CollaboratorAssignments user={u} state={state} action={action} /></TableCell>
                   <TableCell>
                     {u.id === actor.id && (
                       <small className="text-muted-foreground">Tú</small>
@@ -329,11 +332,6 @@ export function Administration({
           <p className="text-muted-foreground">
             Los torneos archivados conservan sus resultados y auditoría.
           </p>
-          {admin && (
-            <Button onClick={() => setOpen(true)}>
-              Cerrar torneo y crear siguiente
-            </Button>
-          )}
         </div>
         {state.archives.length ? (
           <section className="panel">
@@ -362,52 +360,14 @@ export function Administration({
             description="Al cerrar el torneo actual aparecerá aquí. Los datos se conservarán."
           />
         )}
-        <Modal
-          title="Cerrar torneo y crear siguiente"
-          description="El torneo actual quedará archivado. Deben estar finalizados todos sus encuentros."
-          open={open}
-          onClose={() => setOpen(false)}
-        >
-          <form
-            onSubmit={async (e) => {
-              e.preventDefault();
-              setBusy(true);
-              const d = new FormData(e.currentTarget);
-              try {
-                await action("/v1/tournaments/new", {
-                  name: formValue(d, "name"),
-                  venue: formValue(d, "venue"),
-                  city: formValue(d, "city"),
-                  starts_on: formValue(d, "start"),
-                  ends_on: formValue(d, "end"),
-                  archive_current: true,
-                });
-                setOpen(false);
-              } catch {
-              } finally {
-                setBusy(false);
-              }
-            }}
-          >
-            <FieldGroup>
-              <TextField name="name" label="Nombre del siguiente torneo" />
-              <TextField name="venue" label="Club / Sede" />
-              <TextField name="city" label="Ciudad" required={false} />
-              <TextField name="start" label="Fecha de inicio" type="date" />
-              <TextField name="end" label="Fecha de cierre" type="date" />
-              <FieldDescription>
-                Esta acción archiva el torneo actual y no se puede deshacer.
-              </FieldDescription>
-              <Submit busy={busy} label="Archivar actual y crear torneo" />
-            </FieldGroup>
-          </form>
-        </Modal>
       </>
     );
+  if (view === "configuracion") return <div className="settings-layout"><BrandSettings state={state} action={action} /><PaymentSettings state={state} scope="club" /></div>;
+  if (!t) return <EmptyState title="Selecciona un torneo" description="Los ajustes de un torneo aparecen al seleccionarlo en el sidebar." />;
   return (
     <div className="settings-layout">
-      <PaymentSettings state={state}/>
-      <BrandSettings state={state} action={action} />
+      <PaymentSettings state={state} scope="tournament" />
+      <section className="panel p-5"><h2>Archivar torneo</h2><p>Se conserva su historial. Todos los partidos deben haber terminado.</p><Confirm title={`Archivar ${t.name}`} description="Este torneo dejará de aceptar inscripciones. Los demás torneos seguirán abiertos." onConfirm={() => action("/v1/workspaces/archive", {tournament_id:t.id})}>Archivar torneo</Confirm></section>
       <section className="panel settings-form">
         <div className="panel-heading">
           <div>
