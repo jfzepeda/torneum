@@ -13,6 +13,7 @@ import {
   FieldDescription,
 } from "@/components/ui/field";
 import { Switch } from "@/components/ui/switch";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableHeader,
@@ -174,6 +175,9 @@ export function Administration({
   const [open, setOpen] = useState(false),
     [busy, setBusy] = useState(false),
     [role, setRole] = useState("viewer"),
+    [search, setSearch] = useState(""),
+    [archiveSearch, setArchiveSearch] = useState(""),
+    [year, setYear] = useState("all"),
     [auto, setAuto] = useState(state.tournament?.auto_approve || false),
     [registration, setRegistration] = useState(
       state.tournament?.registration_open || false,
@@ -185,6 +189,7 @@ export function Administration({
       [0, 1, 2].map((i) => state.tournament?.highlights?.[i]?.icon || "trophy"),
     );
   const admin = actor.role === "admin";
+  const q = search.trim().toLowerCase();
   const t = state.tournament;
   if (!admin && view !== "archivo")
     return (
@@ -204,6 +209,13 @@ export function Administration({
           <p className="text-muted-foreground">
             Roles fijos, permisos verificados por el servidor.
           </p>
+          <Input
+            className="max-w-xs"
+            placeholder="Buscar por nombre o correo"
+            aria-label="Buscar colaboradores"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
           <Button onClick={() => setOpen(true)}>
             <Plus data-icon="inline-start" />
             Añadir colaborador
@@ -240,13 +252,38 @@ export function Administration({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {state.users.map((u) => (
+              {state.users
+                .filter(
+                  (u) =>
+                    !q ||
+                    u.name.toLowerCase().includes(q) ||
+                    u.email.toLowerCase().includes(q),
+                )
+                .map((u) => (
                 <TableRow key={u.id}>
                   <TableCell>
                     <strong>{u.name}</strong>
                   </TableCell>
                   <TableCell>{u.email}</TableCell>
-                  <TableCell>{labels[u.role]}</TableCell>
+                  <TableCell>
+                    {u.id === actor.id ? (
+                      labels[u.role]
+                    ) : (
+                      <Choice
+                        value={u.role}
+                        onChange={(v) =>
+                          void action("/v1/users/role", {
+                            id: u.id,
+                            role: v,
+                          }).catch(() => {})
+                        }
+                        options={ROLES.map((v) => ({
+                          value: v,
+                          label: labels[v],
+                        }))}
+                      />
+                    )}
+                  </TableCell>
                   <TableCell
                     className={u.active ? "" : "text-muted-foreground"}
                   >
@@ -257,20 +294,32 @@ export function Administration({
                     {u.id === actor.id && (
                       <small className="text-muted-foreground">Tú</small>
                     )}
-                    {u.id !== actor.id && (
-                      <Confirm
-                        title={
-                          u.active ? "Desactivar acceso" : "Reactivar acceso"
+                    {u.id !== actor.id && !u.active && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          void action("/v1/users/access", {
+                            id: u.id,
+                            active: true,
+                          }).catch(() => {})
                         }
+                      >
+                        Reactivar
+                      </Button>
+                    )}
+                    {u.id !== actor.id && u.active && (
+                      <Confirm
+                        title="Desactivar acceso"
                         description={`${u.name} · ${u.email}`}
                         onConfirm={() =>
                           action("/v1/users/access", {
                             id: u.id,
-                            active: !u.active,
+                            active: false,
                           })
                         }
                       >
-                        {u.active ? "Desactivar" : "Reactivar"}
+                        Desactivar
                       </Confirm>
                     )}
                   </TableCell>
@@ -316,13 +365,7 @@ export function Administration({
                 label="Rol"
                 value={role}
                 onChange={setRole}
-                options={[
-                  "viewer",
-                  "registration",
-                  "scheduling",
-                  "referee",
-                  "admin",
-                ].map((v) => ({ value: v, label: labels[v] }))}
+                options={ROLES.map((v) => ({ value: v, label: labels[v] }))}
               />
               <Submit busy={busy} />
             </FieldGroup>
@@ -330,13 +373,44 @@ export function Administration({
         </Modal>
       </>
     );
-  if (view === "archivo")
+  if (view === "archivo") {
+    const years = [
+      ...new Set(
+        state.archives.flatMap((a) => (a.starts_on ? [a.starts_on.slice(0, 4)] : [])),
+      ),
+    ].sort((a, b) => b.localeCompare(a));
+    const archives = state.archives.filter(
+      (a) =>
+        a.name.toLowerCase().includes(archiveSearch.trim().toLowerCase()) &&
+        (year === "all" || a.starts_on?.slice(0, 4) === year),
+    );
     return (
       <>
         <div className="view-toolbar">
           <p className="text-muted-foreground">
             Los torneos archivados conservan sus resultados y auditoría.
           </p>
+          {!!state.archives.length && (
+            <div className="flex gap-2">
+              <Input
+                className="w-56"
+                placeholder="Buscar por nombre"
+                aria-label="Buscar torneos archivados"
+                value={archiveSearch}
+                onChange={(e) => setArchiveSearch(e.target.value)}
+              />
+              <div className="w-32">
+                <Choice
+                  value={year}
+                  onChange={setYear}
+                  options={[
+                    { value: "all", label: "Todos" },
+                    ...years.map((y) => ({ value: y, label: y })),
+                  ]}
+                />
+              </div>
+            </div>
+          )}
         </div>
         {state.archives.length ? (
           <section className="panel">
@@ -349,13 +423,20 @@ export function Administration({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {state.archives.map((a) => (
+                {archives.map((a) => (
                   <TableRow key={a.id}>
                     <TableCell>{a.name}</TableCell>
                     <TableCell>{a.starts_on ? date(a.starts_on) : a.dates_label || "Por confirmar"}</TableCell>
                     <TableCell>Archivado <ArchiveDetails id={a.id}/></TableCell>
                   </TableRow>
                 ))}
+                {!archives.length && (
+                  <TableRow>
+                    <TableCell colSpan={3} className="text-muted-foreground">
+                      Ningún torneo coincide con la búsqueda.
+                    </TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </section>
@@ -367,6 +448,7 @@ export function Administration({
         )}
       </>
     );
+  }
   if (view === "configuracion") return <div className="settings-layout"><BrandSettings state={state} action={action} /><PaymentSettings state={state} scope="club" /></div>;
   if (!t) return <EmptyState title="Selecciona un torneo" description="Los ajustes de un torneo aparecen al seleccionarlo en el sidebar." />;
   return (
@@ -564,6 +646,7 @@ export function Administration({
     </div>
   );
 }
+const ROLES = ["viewer", "registration", "scheduling", "referee", "admin"];
 const ROLE_HELP =
   "Visor: solo consulta. Inscripciones: gestiona parejas. Programación: horarios y canchas. Árbitro: registra resultados. Administrador: acceso total.";
 function auditLabel(action: string) {

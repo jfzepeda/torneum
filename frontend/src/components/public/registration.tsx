@@ -13,10 +13,26 @@ import {
   defaultSchema,
 } from "../registration-fields";
 import { money } from "../payments";
-import { mutate } from "@/lib/api";
+import { get, mutate } from "@/lib/api";
 import { PublicShell, usePublic } from "./shell";
+// Marca local para disuadir inscripciones repetidas desde el mismo navegador (no es una garantía).
+const registeredCookie = (tournamentId: string) => `torneum_inscrito_${tournamentId}`;
+const hasRegistered = (tournamentId: string) =>
+  document.cookie.split("; ").some((c) => c.startsWith(registeredCookie(tournamentId) + "="));
 export function Registration({ slug }: { slug: string }) {
   const { state, error } = usePublic(slug);
+  const [staff, setStaff] = useState(false),
+    [already, setAlready] = useState(false);
+  const tournamentId = state?.tournament?.id;
+  useEffect(() => {
+    // El organizador usa este formulario para dar de alta varias parejas: no se le bloquea.
+    void get<{ actor: { role: string } | null }>("/v1/session")
+      .then((r) => setStaff(!!r.actor && r.actor.role !== "participant"))
+      .catch(() => {});
+  }, []);
+  useEffect(() => {
+    if (tournamentId) setAlready(hasRegistered(tournamentId));
+  }, [tournamentId]);
   const [category, setCategory] = useState(""),
     [reviewPending, setReviewPending] = useState(false),
     [accessLink, setAccessLink] = useState(""),
@@ -49,7 +65,27 @@ export function Registration({ slug }: { slug: string }) {
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
-        {done ? (
+        {already && !staff && !done ? (
+          <section className="panel registration-success">
+            <CheckCircle2 size={38} />
+            <h2>Ya registraste una pareja en este torneo.</h2>
+            <p>
+              Desde este dispositivo ya se envió una inscripción. Para revisarla,
+              cambiar datos o completar el pago, entra a Mi pareja. Si necesitas
+              inscribir a otra pareja, contacta al organizador.
+            </p>
+            <Button nativeButton={false} render={<Link href={`/${slug}/mi-pareja`} />}>
+              Ir a mi pareja
+            </Button>
+            <Button
+              variant="outline"
+              nativeButton={false}
+              render={<Link href={`/${slug}/portal`} />}
+            >
+              Volver al torneo
+            </Button>
+          </section>
+        ) : done ? (
           <section className="panel registration-success">
             <CheckCircle2 size={38} />
             <h2>
@@ -108,6 +144,8 @@ export function Registration({ slug }: { slug: string }) {
                 setReviewPending(Boolean(r.review_pending));
                 setDevLink((r.development_link as string) || "");
                 setDone(true);
+                if (tournamentId && !staff)
+                  document.cookie = `${registeredCookie(tournamentId)}=1; max-age=${60 * 60 * 24 * 365}; path=/; SameSite=Lax`;
                 toast.success("Inscripción enviada");
                 window.scrollTo({ top: 0, behavior: "smooth" });
               } catch (e) {

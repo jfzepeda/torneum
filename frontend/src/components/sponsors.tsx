@@ -1,7 +1,7 @@
 "use client";
 import {Research} from "./research";
 import { useState } from "react";
-import { Plus, Mail, ExternalLink, FileText, Sparkles, Copy } from "lucide-react";
+import { Plus, Mail, ExternalLink, FileText, Sparkles, Copy, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
@@ -58,7 +58,10 @@ export function Sponsors({ state, actor, action }: ViewProps) {
     [selected, setSelected] = useState<string[]>([]),
     [filter, setFilter] = useState("all"),
     [picked, setPicked] = useState<string[]>([]),
-    [newLevel, setNewLevel] = useState(false);
+    [search, setSearch] = useState(""),
+    [bulkStatus, setBulkStatus] = useState("reviewed"),
+    [messageFilter, setMessageFilter] = useState("all"),
+    [levelForm, setLevelForm] = useState<ViewProps["state"]["levels"][number] | true | null>(null);
   if (actor.role !== "admin")
     return (
       <Alert>
@@ -68,10 +71,30 @@ export function Sponsors({ state, actor, action }: ViewProps) {
       </Alert>
     );
   const draft = typeof editing === "object" ? editing : null;
-  const visible = state.sponsors.filter((s) => filter === "all" || s.status === filter),
-    selectable = visible.filter((s) => s.status !== "excluded"),
-    pendingVisible = selectable.filter((s) => s.status !== "won"),
-    pickedPending = state.sponsors.filter((s) => picked.includes(s.id) && s.status !== "won");
+  const query = search.trim().toLowerCase();
+  const visible = state.sponsors.filter(
+      (s) =>
+        (filter === "all" || s.status === filter) &&
+        (!query || s.name.toLowerCase().includes(query) || (s.email || "").toLowerCase().includes(query)),
+    ),
+    selectable = visible,
+    pendingVisible = visible.filter((s) => s.status !== "won" && s.status !== "excluded"),
+    pickedPending = state.sponsors.filter(
+      (s) => picked.includes(s.id) && s.status !== "won" && s.status !== "excluded",
+    ),
+    pickedSponsors = state.sponsors.filter((s) => picked.includes(s.id));
+  const editableStatuses = ["prospect", "reviewed", "negotiation", "won", "lost", "excluded"],
+    bulkStatuses = ["prospect", "reviewed", "negotiation", "lost", "excluded"];
+  const setSponsorStatus = async (ids: string[], value: string) => {
+    if (value === "won") await action("/v1/sponsors/confirm", { ids });
+    else await action("/v1/sponsors/status", { ids, status: value });
+    setPicked([]);
+  };
+  const cancelable = (m: Message) => ["draft", "approved", "queued", "failed"].includes(m.status);
+  const messageStatuses = [...new Set(state.messages.map((m) => m.status))],
+    visibleMessages = state.messages.filter((m) => messageFilter === "all" || m.status === messageFilter),
+    selectedCancelable = state.messages.filter((m) => selected.includes(m.id) && cancelable(m));
+  const levelDraft = typeof levelForm === "object" ? levelForm : null;
   const confirm = async (ids: string[]) => {
     await action("/v1/sponsors/confirm", { ids });
     setPicked([]);
@@ -114,6 +137,18 @@ export function Sponsors({ state, actor, action }: ViewProps) {
               </Button>
             ))}
           </div>
+          <div className="search-field">
+            <Search size={15} />
+            <Input
+              aria-label="Buscar patrocinadores"
+              placeholder="Buscar por nombre o correo…"
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPicked([]);
+              }}
+            />
+          </div>
         </div>
         <div className="view-toolbar">
           <span aria-live="polite">{picked.length} {picked.length === 1 ? "seleccionado" : "seleccionados"}</span>
@@ -125,6 +160,32 @@ export function Sponsors({ state, actor, action }: ViewProps) {
               onConfirm={() => confirm(pickedPending.map((s) => s.id))}
             >
               Confirmar selección
+            </Confirm>
+            <div className="w-48 [&_label]:sr-only">
+              <Choice
+                label="Cambiar estado a…"
+                value={bulkStatus}
+                onChange={setBulkStatus}
+                options={bulkStatuses.map((v) => ({ value: v, label: labels[v] }))}
+              />
+            </div>
+            <Confirm
+              disabled={!picked.length}
+              title={`Cambiar estado a ${labels[bulkStatus]}`}
+              description={`Se actualizará el estado de: ${pickedSponsors.map((s) => s.name).join(" · ")}`}
+              onConfirm={() => setSponsorStatus(picked, bulkStatus)}
+            >
+              Aplicar estado
+            </Confirm>
+            <Confirm
+              destructive
+              disabled={!picked.length}
+              title="Excluir patrocinadores seleccionados"
+              description={`Se excluirán y no podrán recibir propuestas: ${pickedSponsors.map((s) => s.name).join(" · ")}`}
+              confirmLabel="Excluir"
+              onConfirm={() => setSponsorStatus(picked, "excluded")}
+            >
+              Excluir seleccionados
             </Confirm>
             <Confirm
               disabled={!pendingVisible.length}
@@ -163,7 +224,6 @@ export function Sponsors({ state, actor, action }: ViewProps) {
                     <input
                       aria-label={`Seleccionar a ${s.name}`}
                       type="checkbox"
-                      disabled={s.status === "excluded"}
                       checked={picked.includes(s.id)}
                       onChange={(e) =>
                         setPicked((p) => (e.target.checked ? [...p, s.id] : p.filter((id) => id !== s.id)))
@@ -199,7 +259,16 @@ export function Sponsors({ state, actor, action }: ViewProps) {
                   </TableCell>
                   <TableCell>{s.evidence.length} {s.evidence.length === 1 ? "fuente" : "fuentes"}</TableCell>
                   <TableCell>
-                    <Status value={s.status} />
+                    <div className="w-36 [&_label]:sr-only">
+                      <Choice
+                        label={`Estado de ${s.name}`}
+                        value={s.status}
+                        onChange={(v) => {
+                          if (v !== s.status) void setSponsorStatus([s.id], v).catch(() => {});
+                        }}
+                        options={editableStatuses.map((v) => ({ value: v, label: labels[v] }))}
+                      />
+                    </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex gap-2">
@@ -231,7 +300,7 @@ export function Sponsors({ state, actor, action }: ViewProps) {
             </TableBody>
           </Table>
           {!!state.sponsors.length && !visible.length && (
-            <EmptyState title="Sin resultados" description="Ningún patrocinador tiene este estado." />
+            <EmptyState title="Sin resultados" description="Ningún patrocinador coincide con el filtro o la búsqueda." />
           )}
           {!state.sponsors.length && (
             <EmptyState
@@ -244,7 +313,7 @@ export function Sponsors({ state, actor, action }: ViewProps) {
       <TabsContent value="levels">
         <div className="view-toolbar">
           <p>La visibilidad pública se hereda del paquete asignado.</p>
-          <Button variant="outline" onClick={() => setNewLevel(true)}>
+          <Button variant="outline" onClick={() => setLevelForm(true)}>
             Crear paquete
           </Button>
         </div>
@@ -281,11 +350,44 @@ export function Sponsors({ state, actor, action }: ViewProps) {
                   )
                   .join(", ")}
               </small>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={() => setLevelForm(l)}>
+                  Editar
+                </Button>
+                <Confirm
+                  destructive
+                  title={`Eliminar paquete ${l.name}`}
+                  description="El paquete se eliminará. No se puede eliminar si algún patrocinador lo tiene asignado."
+                  confirmLabel="Eliminar"
+                  onConfirm={() => action("/v1/levels/delete", { id: l.id })}
+                >
+                  Eliminar
+                </Confirm>
+              </div>
             </section>
           ))}
         </div>
       </TabsContent>
       <TabsContent value="messages">
+        <div className="view-toolbar">
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrar propuestas por estado">
+            {["all", ...messageStatuses].map((f) => (
+              <Button
+                key={f}
+                size="sm"
+                variant={messageFilter === f ? "default" : "outline"}
+                aria-pressed={messageFilter === f}
+                onClick={() => {
+                  setMessageFilter(f);
+                  setSelected([]);
+                }}
+              >
+                {f === "all" ? "Todos" : labels[f] || f} (
+                {f === "all" ? state.messages.length : state.messages.filter((m) => m.status === f).length})
+              </Button>
+            ))}
+          </div>
+        </div>
         <div className="view-toolbar">
           <span aria-live="polite">{selected.length} {selected.length === 1 ? "seleccionado" : "seleccionados"}</span>
           <div className="flex flex-wrap gap-2">
@@ -320,6 +422,26 @@ export function Sponsors({ state, actor, action }: ViewProps) {
             >
               Enviar selección
             </Confirm>
+            <Confirm
+              disabled={!selectedCancelable.length}
+              title="Cancelar propuestas seleccionadas"
+              description={`Se cancelarán ${selectedCancelable.length} mensajes: ${selectedCancelable.map((m) => m.sponsor_name + ": " + m.subject).join(" · ")}`}
+              onConfirm={async () => {
+                let ok = 0;
+                for (const m of selectedCancelable) {
+                  try {
+                    await action("/v1/messages/cancel", { id: m.id, publish: false });
+                    ok++;
+                  } catch {}
+                }
+                const failed = selectedCancelable.length - ok;
+                if (failed) toast.warning(`${ok} cancelados, ${failed} no se pudieron cancelar`);
+                else toast.success(`${ok} ${ok === 1 ? "mensaje cancelado" : "mensajes cancelados"}`);
+                setSelected([]);
+              }}
+            >
+              Cancelar seleccionados ({selectedCancelable.length})
+            </Confirm>
             <Button
               variant="outline"
               title="Abre Google para autorizar el envío desde tu cuenta de Gmail"
@@ -343,9 +465,9 @@ export function Sponsors({ state, actor, action }: ViewProps) {
                   <input
                     aria-label="Seleccionar todas las propuestas"
                     type="checkbox"
-                    checked={!!state.messages.length && selected.length === state.messages.length}
+                    checked={!!visibleMessages.length && visibleMessages.every((m) => selected.includes(m.id))}
                     onChange={(e) =>
-                      setSelected(e.target.checked ? state.messages.map((m) => m.id) : [])
+                      setSelected(e.target.checked ? visibleMessages.map((m) => m.id) : [])
                     }
                   />
                 </TableHead>
@@ -356,7 +478,7 @@ export function Sponsors({ state, actor, action }: ViewProps) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {state.messages.map((m) => (
+              {visibleMessages.map((m) => (
                 <TableRow key={m.id}>
                   <TableCell>
                     <input
@@ -394,9 +516,7 @@ export function Sponsors({ state, actor, action }: ViewProps) {
                       >
                         Vista previa
                       </Button>
-                      {["draft", "approved", "queued", "failed"].includes(
-                        m.status,
-                      ) && (
+                      {cancelable(m) && (
                         <Confirm
                           title="Cancelar mensaje"
                           description={m.subject}
@@ -693,25 +813,36 @@ export function Sponsors({ state, actor, action }: ViewProps) {
         )}
       </Modal>
       <Modal
-        title="Nuevo paquete"
-        open={newLevel}
-        onClose={() => setNewLevel(false)}
+        title={levelDraft ? "Editar paquete" : "Nuevo paquete"}
+        open={!!levelForm}
+        onClose={() => setLevelForm(null)}
       >
         <form
+          key={levelDraft?.id || "new"}
           onSubmit={async (e) => {
             e.preventDefault();
-            setBusy(true);
             const d = new FormData(e.currentTarget);
+            const zones = d.getAll("zones").map(String);
+            if (!zones.length) {
+              toast.error("Elige al menos una zona de visibilidad.");
+              return;
+            }
+            setBusy(true);
+            const fields = {
+              name: formValue(d, "name"),
+              amount: Number(d.get("amount")),
+              benefits: formValue(d, "benefits"),
+              zones,
+            };
             try {
-              await action("/v1/levels", {
-                name: formValue(d, "name"),
-                amount: Number(d.get("amount")),
-                benefits: formValue(d, "benefits"),
-                zones: ["portal", "calendar", "bracket"],
-                priority: Number(d.get("priority")),
-                logo_size: 120,
-              });
-              setNewLevel(false);
+              if (levelDraft) await action("/v1/levels/update", { id: levelDraft.id, ...fields });
+              else
+                await action("/v1/levels", {
+                  ...fields,
+                  priority: Number(d.get("priority")),
+                  logo_size: 120,
+                });
+              setLevelForm(null);
             } catch {
             } finally {
               setBusy(false);
@@ -719,22 +850,43 @@ export function Sponsors({ state, actor, action }: ViewProps) {
           }}
         >
           <FieldGroup>
-            <TextField name="name" label="Nombre del paquete" />
+            <TextField name="name" label="Nombre del paquete" defaultValue={levelDraft?.name} />
             <TextField
               name="amount"
               label="Monto de referencia (MXN)"
               type="number"
               min={0}
+              defaultValue={levelDraft ? String(Number(levelDraft.amount)) : undefined}
             />
-            <TextField name="benefits" label="Beneficios incluidos" />
-            <TextField
-              name="priority"
-              label="Prioridad (1 = principal)"
-              type="number"
-              min={1}
-              max={20}
-              defaultValue={1}
-            />
+            <TextField name="benefits" label="Beneficios incluidos" defaultValue={levelDraft?.benefits} />
+            {!levelDraft && (
+              <TextField
+                name="priority"
+                label="Prioridad (1 = principal)"
+                type="number"
+                min={1}
+                max={20}
+                defaultValue={1}
+              />
+            )}
+            <fieldset className="flex flex-wrap gap-4 text-sm">
+              <legend className="mb-2 font-medium">Aparece en</legend>
+              {[
+                ["portal", "Portal"],
+                ["calendar", "Calendario"],
+                ["bracket", "Cuadro"],
+              ].map(([z, label]) => (
+                <label key={z} className="flex gap-2 items-center">
+                  <input
+                    name="zones"
+                    type="checkbox"
+                    value={z}
+                    defaultChecked={levelDraft ? levelDraft.zones.includes(z) : true}
+                  />
+                  {label}
+                </label>
+              ))}
+            </fieldset>
             <Submit busy={busy} />
           </FieldGroup>
         </form>

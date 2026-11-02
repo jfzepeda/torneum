@@ -601,6 +601,21 @@ export function registerGoogleRoutes(app: FastifyInstance) {
         return { updated, skipped: b.items.length - updated };
       }),
   );
+  post(
+    "/v1/registration-inbox/bulk-discard",
+    z.object({ tournament_id: id, ids: z.array(id).min(1).max(500) }),
+    "admin",
+    async (b, a) =>
+      transaction(async (db) => {
+        await lockTournament(db, a.organization_id, b.tournament_id);
+        const r = await db.query(
+          "UPDATE registration_inbox SET status='discarded',reviewed_by=$4,reviewed_at=now(),version=version+1,updated_at=now() WHERE id=ANY($1::uuid[]) AND organization_id=$2 AND tournament_id=$3 AND status='pending' RETURNING id",
+          [[...new Set(b.ids)], a.organization_id, b.tournament_id, a.id],
+        );
+        await audit(db, a.organization_id, a.id, "registration.bulk_discard", b.tournament_id, null, { ids: r.rows.map((x) => x.id) });
+        return { discarded: r.rowCount, skipped: new Set(b.ids).size - (r.rowCount ?? 0) };
+      }),
+  );
   app.get("/v1/integrations/google/oauth/start", async (req, reply) => {
     const a = requirePermission(await getActor(req), "admin");
     if (!oauthAvailable(reply)) return;

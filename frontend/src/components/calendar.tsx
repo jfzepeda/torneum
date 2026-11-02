@@ -7,11 +7,14 @@ import {
   GripVertical,
   Sparkles,
   ArrowRight,
+  Pencil,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
-import { FieldGroup } from "@/components/ui/field";
+import { FieldGroup, Field, FieldLabel } from "@/components/ui/field";
+import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Status,
@@ -20,11 +23,12 @@ import {
   DateField,
   Submit,
   Choice,
+  Confirm,
   EmptyState,
   formValue,
 } from "./common";
 import type { ViewProps } from "./dashboard";
-import type { Match } from "@/lib/types";
+import type { Match, Court } from "@/lib/types";
 import { date, time } from "@/lib/api";
 function Tip({ text, children }: { text: string; children: React.ReactElement }) {
   return (
@@ -43,12 +47,20 @@ export function CalendarView({ state, actor, action }: ViewProps) {
     [adding, setAdding] = useState(false),
     [busy, setBusy] = useState(false),
     [preview, setPreview] = useState<Change[] | null>(null),
-    [pending, setPending] = useState<Change[] | null>(null);
+    [pending, setPending] = useState<Change[] | null>(null),
+    [slotHour, setSlotHour] = useState<number | null>(null),
+    [category, setCategory] = useState("all"),
+    [editCourt, setEditCourt] = useState<Court | null>(null),
+    [courtEnabled, setCourtEnabled] = useState(true);
   const can = ["admin", "scheduling"].includes(actor.role);
   const name = (id: string | null) =>
     state.teams.find((t) => t.id === id)?.name || "Por definir";
   const unplanned = state.matches.filter(
-    (m) => m.status === "unscheduled" && m.home_id && m.away_id,
+    (m) =>
+      m.status === "unscheduled" &&
+      m.home_id &&
+      m.away_id &&
+      (category === "all" || m.category_id === category),
   );
   const scheduled = state.matches.filter(
     (m) =>
@@ -138,18 +150,22 @@ export function CalendarView({ state, actor, action }: ViewProps) {
                 : "Solo administración y programación pueden modificar el calendario."
             }
           >
-            <Button
-              variant="outline"
-              disabled={!can}
-              onClick={() =>
-                void action("/v1/schedule/undo", {
-                  tournament_id: state.tournament!.id,
-                }).catch(() => {})
-              }
-            >
-              <Undo2 data-icon="inline-start" />
-              Deshacer
-            </Button>
+            <span className="inline-flex">
+              <Confirm
+                title="Deshacer último cambio"
+                description="Se revertirá el último cambio publicado en el calendario."
+                confirmLabel="Deshacer"
+                disabled={!can}
+                onConfirm={() =>
+                  action("/v1/schedule/undo", {
+                    tournament_id: state.tournament!.id,
+                  })
+                }
+              >
+                <Undo2 data-icon="inline-start" />
+                Deshacer
+              </Confirm>
+            </span>
           </Tip>
           <Tip text="Añade una cancha con su horario de apertura.">
             <Button
@@ -199,6 +215,19 @@ export function CalendarView({ state, actor, action }: ViewProps) {
                 Por agendar <span>{unplanned.length}</span>
               </h2>
               <p>{can ? "Arrastra a una cancha disponible o haz clic para elegir horario." : "Solo lectura: no tienes permiso para programar."}</p>
+              <div className="mt-3">
+              <Choice
+                value={category}
+                onChange={setCategory}
+                options={[
+                  { value: "all", label: "Todas" },
+                  ...state.categories.map((c) => ({
+                    value: c.id,
+                    label: c.name,
+                  })),
+                ]}
+              />
+              </div>
             </div>
           </div>
           <div className="unscheduled-list">
@@ -211,6 +240,7 @@ export function CalendarView({ state, actor, action }: ViewProps) {
                 title="Clic para programar · arrastra a una cancha"
                 onClick={() => {
                   setEditing(m);
+                  setSlotHour(null);
                   setCourt(state.courts[0]?.id || "");
                 }}
               >
@@ -258,12 +288,30 @@ export function CalendarView({ state, actor, action }: ViewProps) {
           >
             <div className="calendar-corner">HORA</div>
             {state.courts.map((c) => (
-              <div className="court-heading" key={c.id}>
+              <div
+                className={"court-heading relative" + (c.enabled ? "" : " opacity-50")}
+                key={c.id}
+              >
                 <span className="court-indicator" />
                 {c.name}
                 <small>
-                  {c.opens_at} — {c.closes_at}
+                  {c.enabled ? `${c.opens_at} — ${c.closes_at}` : "Deshabilitada"}
                 </small>
+                {can && (
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    className="absolute top-1 right-1"
+                    aria-label={`Editar ${c.name}`}
+                    title="Editar cancha"
+                    onClick={() => {
+                      setEditCourt(c);
+                      setCourtEnabled(c.enabled);
+                    }}
+                  >
+                    <Pencil />
+                  </Button>
+                )}
               </div>
             ))}
             {allHours.map((hour) => (
@@ -300,17 +348,18 @@ export function CalendarView({ state, actor, action }: ViewProps) {
                     >
                       {matches.length ? (
                         matches.map((m) => (
+                          <div className="relative" key={m.id}>
                           <button
                             className={
                               "schedule-card placed " +
                               (m.status === "finished" ? "completed" : "")
                             }
-                            key={m.id}
                             title={`${name(m.home_id)} vs ${name(m.away_id)} · ${time(m.starts_at!)} — ${time(m.ends_at!)} · ${c.name}${m.status === "finished" ? " · Finalizado (no se puede mover)" : ""}`}
                             draggable={can && m.status === "scheduled"}
                             onDragStart={() => setDrag(m)}
                             onClick={() => {
                               setEditing(m);
+                              setSlotHour(null);
                               setCourt(m.court_id || c.id);
                             }}
                           >
@@ -323,6 +372,24 @@ export function CalendarView({ state, actor, action }: ViewProps) {
                             <strong>{name(m.home_id)}</strong>
                             <span>{name(m.away_id)}</span>
                           </button>
+                          {can && m.status === "scheduled" && (
+                            <Button
+                              variant="ghost"
+                              size="icon-xs"
+                              className="absolute right-1 bottom-1"
+                              aria-label="Desprogramar"
+                              title="Desprogramar"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void propose([
+                                  { id: m.id, court_id: null, starts_at: null },
+                                ]);
+                              }}
+                            >
+                              <X />
+                            </Button>
+                          )}
+                          </div>
                         ))
                       ) : (
                         <button
@@ -338,6 +405,7 @@ export function CalendarView({ state, actor, action }: ViewProps) {
                           disabled={!can || !unplanned.length}
                           onClick={() => {
                             setEditing(unplanned[0]);
+                            setSlotHour(hour);
                             setCourt(c.id);
                           }}
                         >
@@ -403,13 +471,28 @@ export function CalendarView({ state, actor, action }: ViewProps) {
               <DateField
                 label="Fecha"
                 name="date"
-                defaultValue={day}
+                defaultValue={
+                  editing.starts_at
+                    ? new Intl.DateTimeFormat("en-CA", {
+                        timeZone: "America/Mexico_City",
+                      }).format(new Date(editing.starts_at))
+                    : day
+                }
               />
               <TextField
                 label="Hora (Ciudad de México)"
                 type="time"
                 name="time"
-                defaultValue="09:00"
+                defaultValue={
+                  editing.starts_at
+                    ? new Intl.DateTimeFormat("en-GB", {
+                        timeZone: "America/Mexico_City",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        hour12: false,
+                      }).format(new Date(editing.starts_at))
+                    : `${String(slotHour ?? 9).padStart(2, "0")}:00`
+                }
               />
               {can && ["scheduled", "unscheduled"].includes(editing.status) && (
                 <div className="flex justify-between">
@@ -522,6 +605,80 @@ export function CalendarView({ state, actor, action }: ViewProps) {
             <Submit busy={busy} />
           </FieldGroup>
         </form>
+      </Modal>
+      <Modal
+        title="Editar cancha"
+        open={!!editCourt}
+        onClose={() => setEditCourt(null)}
+      >
+        {editCourt && (
+          <form
+            key={editCourt.id}
+            onSubmit={async (e) => {
+              e.preventDefault();
+              setBusy(true);
+              const d = new FormData(e.currentTarget);
+              try {
+                await action("/v1/courts/update", {
+                  id: editCourt.id,
+                  name: formValue(d, "name"),
+                  opens_at: formValue(d, "opens"),
+                  closes_at: formValue(d, "closes"),
+                  enabled: courtEnabled,
+                });
+                setEditCourt(null);
+              } catch {
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            <FieldGroup>
+              <TextField
+                name="name"
+                label="Nombre de cancha"
+                defaultValue={editCourt.name}
+              />
+              <TextField
+                name="opens"
+                label="Abre a las"
+                type="time"
+                defaultValue={editCourt.opens_at.slice(0, 5)}
+              />
+              <TextField
+                name="closes"
+                label="Cierra a las"
+                type="time"
+                defaultValue={editCourt.closes_at.slice(0, 5)}
+              />
+              <Field orientation="horizontal">
+                <FieldLabel htmlFor="court-enabled">Habilitada</FieldLabel>
+                <Switch
+                  id="court-enabled"
+                  checked={courtEnabled}
+                  onCheckedChange={setCourtEnabled}
+                />
+              </Field>
+              <Submit busy={busy} />
+            </FieldGroup>
+          </form>
+        )}
+        {editCourt && (
+          <div className="flex justify-end border-t pt-4">
+            <Confirm
+              title={`Eliminar ${editCourt.name}`}
+              description="La cancha se eliminará. No se puede eliminar si tiene partidos asignados."
+              confirmLabel="Eliminar cancha"
+              destructive
+              onConfirm={async () => {
+                await action("/v1/courts/delete", { id: editCourt.id });
+                setEditCourt(null);
+              }}
+            >
+              Eliminar cancha
+            </Confirm>
+          </div>
+        )}
       </Modal>
     </>
   );

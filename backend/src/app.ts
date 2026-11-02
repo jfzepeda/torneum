@@ -389,7 +389,33 @@ export async function buildApp() {
       reason: short,
     }),
     "registrations",
+    (b, a, db) => reviewTeam(b, a!, db),
+  );
+  post(
+    "/v1/registrations/review-bulk",
+    z.object({
+      ids: z.array(id).min(1).max(200),
+      status: z.enum(["approved", "rejected", "withdrawn"]),
+      reason: short,
+    }),
+    "registrations",
     async (b, a, db) => {
+      for (const teamId of [...new Set(b.ids)])
+        try {
+          await reviewTeam({ id: teamId, status: b.status, reason: b.reason }, a!, db);
+        } catch (e) {
+          if (!(e instanceof DomainError)) throw e;
+          const team = (await db.query("SELECT name FROM teams WHERE id=$1", [teamId])).rows[0];
+          throw new DomainError(e.statusCode, `${team?.name || "Pareja"}: ${e.message}`);
+        }
+      return { ok: true, reviewed: new Set(b.ids).size };
+    },
+  );
+  async function reviewTeam(
+    b: { id: string; status: "approved" | "rejected" | "withdrawn"; category_id?: string; reason: string },
+    a: Actor,
+    db: Db,
+  ) {
       const t = (
         await db.query(
           "SELECT t.*,c.draw_published FROM teams t JOIN categories c ON c.id=t.category_id WHERE t.id=$1 AND t.organization_id=$2 FOR UPDATE OF t",
@@ -431,8 +457,7 @@ export async function buildApp() {
         b,
       );
       return { ok: true };
-    },
-  );
+  }
   post(
     "/v1/registrations/verify-all",
     z.object({}),
@@ -758,6 +783,53 @@ export async function buildApp() {
     },
   );
   post(
+    "/v1/courts/update",
+    z.object({
+      id,
+      name: short,
+      opens_at: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+      closes_at: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+      enabled: z.boolean(),
+    }),
+    "courts",
+    async (b, a, db) => {
+      ensure(b.closes_at > b.opens_at, "Horario de cancha inválido.", 400);
+      const c = (
+        await db.query(
+          "SELECT * FROM courts WHERE id=$1 AND organization_id=$2 FOR UPDATE",
+          [b.id, a!.organization_id],
+        )
+      ).rows[0];
+      ensure(c, "Cancha no encontrada.", 404);
+      ensure(
+        !(await db.query("SELECT 1 FROM courts WHERE tournament_id=$1 AND name=$2 AND id<>$3", [c.tournament_id, b.name, c.id])).rowCount,
+        "Ya existe una cancha con ese nombre.",
+      );
+      await db.query(
+        "UPDATE courts SET name=$2,opens_at=$3,closes_at=$4,enabled=$5 WHERE id=$1",
+        [c.id, b.name, b.opens_at, b.closes_at, b.enabled],
+      );
+      await audit(db, a!.organization_id, a!.id, "court.update", c.id, c, b);
+      return { ok: true };
+    },
+  );
+  post("/v1/courts/delete", z.object({ id }), "courts", async (b, a, db) => {
+    const c = (
+      await db.query(
+        "SELECT * FROM courts WHERE id=$1 AND organization_id=$2 FOR UPDATE",
+        [b.id, a!.organization_id],
+      )
+    ).rows[0];
+    ensure(c, "Cancha no encontrada.", 404);
+    const used = (
+      await db.query("SELECT count(*)::int n FROM matches WHERE court_id=$1", [c.id])
+    ).rows[0].n;
+    ensure(!used, "No se puede eliminar: la cancha tiene partidos asignados. Desprográmalos o desactívala.");
+    await db.query("DELETE FROM courts WHERE id=$1", [c.id]);
+    await audit(db, a!.organization_id, a!.id, "court.delete", c.id, c, null);
+    return { ok: true };
+  });
+  post(
     "/v1/requests",
     z.object({
       kind: z.enum(["category", "withdrawal", "description"]),
@@ -799,7 +871,25 @@ export async function buildApp() {
     "/v1/requests/review",
     z.object({ id, approve: z.boolean() }),
     "requests",
+    (b, a, db) => reviewRequest(b, a!, db),
+  );
+  post(
+    "/v1/requests/review-bulk",
+    z.object({ ids: z.array(id).min(1).max(200), approve: z.boolean() }),
+    "requests",
     async (b, a, db) => {
+      for (const requestId of [...new Set(b.ids)])
+        try {
+          await reviewRequest({ id: requestId, approve: b.approve }, a!, db);
+        } catch (e) {
+          if (!(e instanceof DomainError)) throw e;
+          const r = (await db.query("SELECT t.name FROM change_requests r JOIN teams t ON t.id=r.team_id WHERE r.id=$1", [requestId])).rows[0];
+          throw new DomainError(e.statusCode, `${r?.name || "Solicitud"}: ${e.message}`);
+        }
+      return { ok: true, reviewed: new Set(b.ids).size };
+    },
+  );
+  async function reviewRequest(b: { id: string; approve: boolean }, a: Actor, db: Db) {
       const r = (
         await db.query(
           "SELECT * FROM change_requests WHERE id=$1 AND organization_id=$2 FOR UPDATE",
@@ -861,8 +951,7 @@ export async function buildApp() {
       );
       await audit(db, a!.organization_id, a!.id, "request.review", b.id, r, b);
       return { ok: true };
-    },
-  );
+  }
   post(
     "/v1/settings",
     z.object({
@@ -1051,6 +1140,24 @@ export async function buildApp() {
       return { ok: true };
     },
   );
+  post(
+    "/v1/users/role",
+    z.object({
+      id,
+      role: z.enum(["admin", "registration", "scheduling", "referee", "viewer"]),
+    }),
+    "admin",
+    async (b, a, db) => {
+      ensure(b.id !== a!.id, "No puedes cambiar tu propio rol.");
+      const r = await db.query(
+        "UPDATE users SET role=$3 WHERE id=$1 AND organization_id=$2 RETURNING id",
+        [b.id, a!.organization_id, b.role],
+      );
+      ensure(r.rowCount, "Usuario no encontrado.", 404);
+      await audit(db, a!.organization_id, a!.id, "user.role", b.id, null, { role: b.role });
+      return { ok: true };
+    },
+  );
   await registerCommercial(post, app);
   app.post('/v1/images',{bodyLimit:3*1024*1024,config:{rateLimit:{max:10,timeWindow:'1 minute'}}},async(req)=>{const a=await getActor(req);ensure(a&&(a.role==='admin'||a.role==='participant'),'Sesión requerida.',403);const body=z.object({data:z.string().max(2800000),team_id:id.optional()}).parse(req.body);const teamId=a.team_id||body.team_id;ensure(teamId,'Selecciona una pareja.',400);const bytes=Buffer.from(body.data,'base64');ensure(bytes.length<=2*1024*1024,'La imagen supera 2 MB.',400);let image:Buffer;try{const source=sharp(bytes,{limitInputPixels:16000000});const meta=await source.metadata();ensure(['png','jpeg','webp'].includes(meta.format||''),'Solo se admiten PNG, JPEG o WebP.',400);image=await source.rotate().resize(512,512,{fit:'inside',withoutEnlargement:true}).webp({quality:80}).toBuffer();}catch{throw new DomainError(400,'Imagen inválida o demasiado grande.');}return transaction(async db=>{const team=(await db.query('SELECT id FROM teams WHERE id=$1 AND organization_id=$2 FOR UPDATE',[teamId,a.organization_id])).rows[0];ensure(team,'Pareja no encontrada.',404);const stored=(await db.query('INSERT INTO images(organization_id,team_id,content) VALUES($1,$2,$3) RETURNING id',[a.organization_id,team.id,image])).rows[0];await db.query('UPDATE teams SET image_id=$2 WHERE id=$1',[team.id,stored.id]);await audit(db,a.organization_id,a.id,'team.image',team.id,null,{image_id:stored.id});return {image_id:stored.id};});});
   app.get('/v1/images/:id',async(req,reply)=>{const params=z.object({id}).parse(req.params);const image=(await pool.query("SELECT i.content,i.mime_type FROM images i JOIN teams t ON t.id=i.team_id WHERE i.id=$1 AND t.status='approved'",[params.id])).rows[0];ensure(image,'Imagen no disponible.',404);return reply.type(image.mime_type).header('Cache-Control','public, max-age=3600').send(image.content);});
@@ -1107,6 +1214,50 @@ async function registerCommercial(post: Post, app: FastifyInstance) {
       return { ok: true };
     },
   );
+  post(
+    "/v1/levels/update",
+    z.object({
+      id,
+      name: short,
+      amount: z.number().min(0),
+      benefits: z.string().max(2000),
+      zones: z.array(z.enum(["portal", "calendar", "bracket"])).min(1),
+    }),
+    "admin",
+    async (b, a, db) => {
+      const l = (
+        await db.query(
+          "SELECT * FROM sponsor_levels WHERE id=$1 AND organization_id=$2 FOR UPDATE",
+          [b.id, a!.organization_id],
+        )
+      ).rows[0];
+      ensure(l, "Paquete no encontrado.", 404);
+      await db.query(
+        "UPDATE sponsor_levels SET name=$2,amount=$3,benefits=$4,zones=$5 WHERE id=$1",
+        [l.id, b.name, b.amount, b.benefits, b.zones],
+      );
+      await audit(db, a!.organization_id, a!.id, "level.update", l.id, l, b);
+      return { ok: true };
+    },
+  );
+  post("/v1/levels/delete", z.object({ id }), "admin", async (b, a, db) => {
+    const l = (
+      await db.query(
+        "SELECT * FROM sponsor_levels WHERE id=$1 AND organization_id=$2 FOR UPDATE",
+        [b.id, a!.organization_id],
+      )
+    ).rows[0];
+    ensure(l, "Paquete no encontrado.", 404);
+    const used = (
+      await db.query("SELECT count(*)::int n FROM sponsors WHERE level_id=$1", [l.id])
+    ).rows[0].n;
+    ensure(!used, `No se puede eliminar: ${used} patrocinador(es) usan este paquete. Reasígnalos primero.`);
+    // Las copias en otros torneos conservan sus datos; solo pierden la referencia de origen.
+    await db.query("UPDATE sponsor_levels SET copied_from_id=NULL WHERE copied_from_id=$1", [l.id]);
+    await db.query("DELETE FROM sponsor_levels WHERE id=$1", [l.id]);
+    await audit(db, a!.organization_id, a!.id, "level.delete", l.id, l, null);
+    return { ok: true };
+  });
   const sponsorInput = z.object({
     tournament_id: id.optional(),
     id: id.optional(),
@@ -1273,6 +1424,26 @@ async function registerCommercial(post: Post, app: FastifyInstance) {
         await audit(db, a!.organization_id, a!.id, "sponsor.confirm", t.id, null, { ids: pending.map((s) => s.id) });
       }
       return { ok: true, confirmed: pending.length };
+    },
+  );
+  post(
+    "/v1/sponsors/status",
+    z.object({
+      ids: z.array(id).min(1).max(200),
+      // "won" pasa por /v1/sponsors/confirm, que aplica el tope de patrocinadores principales.
+      status: z.enum(["prospect", "reviewed", "negotiation", "lost", "excluded"]),
+    }),
+    "admin",
+    async (b, a, db) => {
+      const t = await active(db, a!);
+      const ids = [...new Set(b.ids)];
+      const r = await db.query(
+        "UPDATE sponsors SET status=$3 WHERE tournament_id=$1 AND id=ANY($2::uuid[]) RETURNING id",
+        [t.id, ids, b.status],
+      );
+      ensure(r.rowCount === ids.length, "La selección contiene patrocinadores de otro torneo.", 400);
+      await audit(db, a!.organization_id, a!.id, "sponsor.status", t.id, null, b);
+      return { ok: true, updated: r.rowCount };
     },
   );
   post(

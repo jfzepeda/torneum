@@ -1,11 +1,8 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { get, API, tournamentSlugs } from "@/lib/api";
 import { useBrand } from "@/lib/brand";
-import { Choice } from "../common";
 import type { State } from "@/lib/types";
 export function PublicShell({
   children,
@@ -32,26 +29,9 @@ export function PublicShell({
           {orgName || "torneum"}.
         </Link>
         <nav>
-          {picker && picker.options.length > 1 && (
-            <div className="w-48">
-              <Choice
-                value={picker.value}
-                onChange={picker.onChange}
-                options={picker.options}
-              />
-            </div>
-          )}
           <Link href={`/${slug}/portal${q}`}>El torneo</Link>
           <Link href={`/${slug}/patrocinadores${q}`}>Patrocinadores</Link>
           <Link href={`/${slug}/mi-pareja${q}`}>Mi inscripción</Link>
-          <Button
-            variant="outline"
-            nativeButton={false}
-            render={<Link href={`/${slug}`} />}
-          >
-            Organizador
-            <ArrowUpRight data-icon="inline-end" />
-          </Button>
         </nav>
       </header>
       {children}

@@ -4,7 +4,8 @@ import { get, mutate } from "@/lib/api";
 import type { State, Category } from "@/lib/types";
 import { toast } from "sonner";
 import { Button } from "./ui/button";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Search } from "lucide-react";
+import { Input } from "./ui/input";
 import { TextField, DateTimeField, Submit, Choice, formValue } from "./common";
 export type RegistrationPayment = {
   id: string;
@@ -244,7 +245,17 @@ export function PaymentSettings({ state, scope = "tournament" }: { state: State;
     (RegistrationPayment & { name: string; email: string })[]
   >([]);
   const [error, setError] = useState(""),
-    [busy, setBusy] = useState(false);
+    [busy, setBusy] = useState(false),
+    [filter, setFilter] = useState("all"),
+    [search, setSearch] = useState(""),
+    [confirming, setConfirming] = useState<string | null>(null),
+    [reference, setReference] = useState("");
+  const query = search.trim().toLowerCase();
+  const visibleRegistrations = registrations.filter(
+    (r) =>
+      (filter === "all" || r.status === filter) &&
+      (!query || r.name.toLowerCase().includes(query) || (r.email || "").toLowerCase().includes(query)),
+  );
   const tournament = scope === "tournament" ? state.tournament?.id : undefined;
   const load = useCallback(async () => {
     const [a, r] = await Promise.all([
@@ -349,13 +360,46 @@ export function PaymentSettings({ state, scope = "tournament" }: { state: State;
       ))}
       {scope === "tournament" && <div className="panel p-6 space-y-3">
         <h3>Pagos del torneo</h3>
+        {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
         {!registrations.length && (
           <p className="text-sm text-muted-foreground">
             Aún no hay inscripciones con cobro. Aparecerán aquí cuando los
             equipos se inscriban.
           </p>
         )}
-        {registrations.map((r) => (
+        {!!registrations.length && (
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrar pagos por estado">
+              {["all", ...new Set(registrations.map((r) => r.status))].map((f) => (
+                <Button
+                  key={f}
+                  size="sm"
+                  variant={filter === f ? "default" : "outline"}
+                  aria-pressed={filter === f}
+                  onClick={() => setFilter(f)}
+                >
+                  {f === "all" ? "Todos" : statuses[f] || f} (
+                  {f === "all" ? registrations.length : registrations.filter((r) => r.status === f).length})
+                </Button>
+              ))}
+            </div>
+            <div className="search-field">
+              <Search size={15} />
+              <Input
+                aria-label="Buscar inscripciones"
+                placeholder="Buscar por nombre o correo…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+          </div>
+        )}
+        {!!registrations.length && !visibleRegistrations.length && (
+          <p className="text-sm text-muted-foreground">
+            Ninguna inscripción coincide con el filtro o la búsqueda.
+          </p>
+        )}
+        {visibleRegistrations.map((r) => (
           <div key={r.id} className="border-b py-3">
             <strong>{r.name}</strong>
             {r.email && (
@@ -369,29 +413,55 @@ export function PaymentSettings({ state, scope = "tournament" }: { state: State;
                 ` · ${statuses[r.payment_status] || r.payment_status}`}
             </p>
             {r.status === "PENDING_PAYMENT" &&
-              r.payment_mode === "external" && (
-                <Button
-                  variant="outline"
-                  onClick={async () => {
-                    const reference = window.prompt(
-                      "Referencia del pago externo recibido (ej. folio de transferencia o recibo)",
-                    );
-                    if (!reference) return;
+              r.payment_mode === "external" &&
+              (confirming === r.id ? (
+                <form
+                  className="mt-3 flex flex-wrap gap-2"
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    setBusy(true);
                     try {
                       await mutate(
                         `/v1/registrations/${r.id}/external-payment`,
-                        { reference },
+                        { reference: reference.trim() },
                       );
                       await load();
+                      setConfirming(null);
                       toast.success("Pago externo confirmado");
                     } catch (e) {
                       setError((e as Error).message);
+                    } finally {
+                      setBusy(false);
                     }
+                  }}
+                >
+                  <Input
+                    autoFocus
+                    className="max-w-xs"
+                    aria-label={`Referencia del pago externo de ${r.name}`}
+                    placeholder="Folio de transferencia o recibo"
+                    value={reference}
+                    onChange={(e) => setReference(e.target.value)}
+                  />
+                  <Button type="submit" disabled={busy || reference.trim().length < 3}>
+                    Confirmar
+                  </Button>
+                  <Button type="button" variant="ghost" disabled={busy} onClick={() => setConfirming(null)}>
+                    Cancelar
+                  </Button>
+                </form>
+              ) : (
+                <Button
+                  variant="outline"
+                  className="mt-3"
+                  onClick={() => {
+                    setConfirming(r.id);
+                    setReference("");
                   }}
                 >
                   Confirmar pago externo recibido
                 </Button>
-              )}
+              ))}
           </div>
         ))}
       </div>}

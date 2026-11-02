@@ -131,6 +131,7 @@ export function Dashboard({ slug }: { slug: string }) {
     [loaded, setLoaded] = useState(false),
     [error, setError] = useState(""),
     [view, setView] = useState("inicio"),
+    [viewStatus, setViewStatus] = useState(""),
     [chat, setChat] = useState(false),
     [search, setSearch] = useState(""),
     [creating, setCreating] = useState(false);
@@ -184,8 +185,10 @@ export function Dashboard({ slug }: { slug: string }) {
     void refresh();
     const desired = new URLSearchParams(location.search).get("view");
     if (desired) setView(desired);
+    setViewStatus(new URLSearchParams(location.search).get("status") || "");
     const onPopState = () => {
       setView(new URLSearchParams(location.search).get("view") || "inicio");
+      setViewStatus(new URLSearchParams(location.search).get("status") || "");
       setState(null); setLoaded(false); void refresh();
     };
     window.addEventListener("popstate", onPopState);
@@ -201,10 +204,11 @@ export function Dashboard({ slug }: { slug: string }) {
       clearInterval(interval);
     };
   }, [refresh, slug]);
-  const go = (target: string) => {
+  const go = (target: string, status = "") => {
     setView(target);
+    setViewStatus(status);
     setSearch("");
-    history.pushState(null, "", tournamentLink(`/${slug}?view=${target}`, selectedId.current));
+    history.pushState(null, "", tournamentLink(`/${slug}?view=${target}${status ? `&status=${status}` : ""}`, selectedId.current));
   };
   const selectTournament = (id: string) => {
     requestVersion.current++;
@@ -416,7 +420,7 @@ export function Dashboard({ slug }: { slug: string }) {
               <Badge variant="outline">{global ? "Todo el club" : state.tournament?.name || "Sin torneo"}</Badge>
             )}
           </div>
-          <div key={global ? view : `${state.tournament?.id}:${view}`}>
+          <div key={global ? view : `${state.tournament?.id}:${view}:${viewStatus}`}>
           {!global && !state.tournament ? <EmptyState title="Crea tu primer torneo" description={actor.role === "admin" ? "Usa Crear torneo en el sidebar. La configuración del club ya está disponible." : "El administrador debe asignarte un torneo para comenzar."} /> : view === "recursos" ? <ReuseResources {...props} /> : view === "inicio" ? (
             <Overview {...props} go={go} />
           ) : [
@@ -429,7 +433,7 @@ export function Dashboard({ slug }: { slug: string }) {
               "estadisticas",
               "solicitudes",
             ].includes(view) ? (
-            <Operations {...props} view={view} />
+            <Operations {...props} view={view} initialFilter={viewStatus || undefined} />
           ) : view === "google" ? (
             <GoogleRegistrations {...props} />
           ) : view === "calendario" ? (
@@ -593,7 +597,7 @@ function Login({
     </main>
   );
 }
-function Overview({ state, go }: ViewProps & { go: (view: string) => void }) {
+function Overview({ state, go }: ViewProps & { go: (view: string, status?: string) => void }) {
   const t = state.tournament!;
   const approved = state.teams.filter((x) => x.status === "approved").length,
     pending = state.teams.filter((x) => x.status === "pending").length,
@@ -650,6 +654,7 @@ function Overview({ state, go }: ViewProps & { go: (view: string) => void }) {
             value: pending,
             sub: "Revisar inscripciones",
             view: "inscripciones",
+            status: "pending",
             icon: Inbox,
           },
           {
@@ -671,7 +676,7 @@ function Overview({ state, go }: ViewProps & { go: (view: string) => void }) {
             key={m.label}
             className="metric"
             title={`${m.label}: ${m.sub}`}
-            onClick={() => go(m.view)}
+            onClick={() => go(m.view, m.status)}
           >
             <div>
               <span>{m.label}</span>
@@ -743,7 +748,7 @@ function Overview({ state, go }: ViewProps & { go: (view: string) => void }) {
           )}
           <button
             className="attention-item"
-            onClick={() => go("inscripciones")}
+            onClick={() => go("inscripciones", "pending")}
           >
             <span className="attention-icon">
               <Users size={18} />

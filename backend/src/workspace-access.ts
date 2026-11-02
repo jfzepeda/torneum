@@ -68,6 +68,8 @@ export async function authorizeWorkspaceAction(db: Db, actor: Actor, path: strin
   }
   const resource: Resource | undefined = path.startsWith("/v1/categories/") ? "categories"
     : path === "/v1/registrations/review" ? "teams"
+    : path.startsWith("/v1/courts/") ? "courts"
+    : path.startsWith("/v1/levels/") ? "levels"
     : path.startsWith("/v1/registrations/:") ? "registrations"
     : path === "/v1/results" || path.startsWith("/v1/matches/") ? "matches"
     : path === "/v1/requests/review" ? "requests"
@@ -79,6 +81,9 @@ export async function authorizeWorkspaceAction(db: Db, actor: Actor, path: strin
   if (resource) { add(resource, body.id); add(resource, params.id); }
   if (path.startsWith("/v1/messages/")) for (const id of body.ids || []) add("messages", id);
   if (path === "/v1/schedule") for (const change of body.changes || []) { add("matches", change.id); add("courts", change.court_id); }
+  if (path === "/v1/registrations/review-bulk") for (const id of body.ids || []) add("teams", id);
+  if (path === "/v1/requests/review-bulk") for (const id of body.ids || []) add("requests", id);
+  if (path === "/v1/registration-inbox/bulk-discard") for (const id of body.ids || []) add("inbox", id);
   if (path === "/v1/registration-inbox/bulk-update") for (const item of body.items || []) { add("inbox", item.id); add("categories", item.category_id); }
   for (const [type, raw] of refs) {
     const id = z.string().uuid().parse(raw);

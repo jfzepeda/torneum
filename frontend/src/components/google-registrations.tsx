@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { Search } from "lucide-react";
 import { get, mutate } from "@/lib/api";
 import type { ViewProps } from "./dashboard";
 import { Button } from "@/components/ui/button";
@@ -140,7 +141,11 @@ export function GoogleRegistrations({ state, actor, action }: ViewProps) {
     [next, setNext] = useState<number | null>(null);
   const [checked, setChecked] = useState<string[]>([]),
     [bulkCategory, setBulkCategory] = useState(""),
-    [quick, setQuick] = useState<Inbox | null>(null);
+    [quick, setQuick] = useState<Inbox | null>(null),
+    [search, setSearch] = useState(""),
+    [progress, setProgress] = useState<{ scope: string; text: string } | null>(
+      null,
+    );
   const [caps, setCaps] = useState<{
     googleOAuth: { available: boolean };
     connection: string;
@@ -312,7 +317,40 @@ export function GoogleRegistrations({ state, actor, action }: ViewProps) {
     toast.success(`${label}: ${r.updated} actualizadas, ${r.skipped} omitidas`);
     setChecked([]);
   }
-  const checkedRows = items.filter((i) => checked.includes(i.id));
+  async function acceptMany(rows: Inbox[], scope: string) {
+    let accepted = 0;
+    const failures: string[] = [];
+    try {
+      for (const [n, item] of rows.entries()) {
+        setProgress({ scope, text: `Aceptando ${n + 1}/${rows.length}…` });
+        try {
+          await resolve(item, "accept");
+          accepted++;
+        } catch (e) {
+          failures.push((e as Error).message);
+        }
+      }
+    } finally {
+      setProgress(null);
+    }
+    toast.success(`${accepted} inscripciones aceptadas`);
+    if (failures.length) {
+      await load();
+      throw new Error(failures.join(" · "));
+    }
+  }
+  const isReady = (i: Inbox) => !i.review_required && !i.errors.length;
+  const term = search.trim().toLowerCase();
+  const visible = term
+    ? items.filter((i) =>
+        [i.normalized.name, ...(i.normalized.players || []).map((p) => p.name)]
+          .filter(Boolean)
+          .some((n) => n.toLowerCase().includes(term)),
+      )
+    : items;
+  const checkedRows = visible.filter((i) => checked.includes(i.id));
+  const allVisibleChecked =
+    visible.length > 0 && checkedRows.length === visible.length;
   const selectionFormId = "review-registration";
   if (!["admin", "registration"].includes(actor.role))
     return (
@@ -393,46 +431,35 @@ export function GoogleRegistrations({ state, actor, action }: ViewProps) {
                 { value: "discarded", label: "Descartadas" },
               ]}
             />
+            <div className="search-field">
+              <Search size={15} />
+              <Input
+                aria-label="Buscar respuestas"
+                placeholder="Buscar equipo o jugador…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
             {status === "pending" && (
               <Button
-                disabled={
-                  busy ||
-                  !items.some((i) => !i.review_required && !i.errors.length)
-                }
+                disabled={busy || !visible.some(isReady)}
                 onClick={() =>
                   run(async () => {
-                    const ready = items.filter(
-                      (i) => !i.review_required && !i.errors.length,
-                    ).length;
+                    const ready = visible.filter(isReady);
                     if (
                       !window.confirm(
-                        `¿Aceptar ${ready} inscripciones válidas de esta página? Se crearán equipos nuevos.`,
+                        `¿Aceptar ${ready.length} inscripciones válidas de esta página? Se crearán equipos nuevos.`,
                       )
                     )
                       return;
-                    let accepted = 0;
-                    const failures: string[] = [];
-                    for (const item of items.filter(
-                      (i) => !i.review_required && !i.errors.length,
-                    ))
-                      try {
-                        await resolve(item, "accept");
-                        accepted++;
-                      } catch (e) {
-                        failures.push((e as Error).message);
-                      }
-                    toast.success(`${accepted} inscripciones aceptadas`);
-                    if (failures.length) {
-                      await load();
-                      throw new Error(failures.join(" · "));
-                    }
+                    await acceptMany(ready, "page");
+                    setChecked([]);
                   })
                 }
               >
-                Aceptar válidas de esta página (
-                {items.filter((i) => !i.review_required && !i.errors.length)
-                  .length}
-                )
+                {progress?.scope === "page"
+                  ? progress.text
+                  : `Aceptar válidas de esta página (${visible.filter(isReady).length})`}
               </Button>
             )}
           </div>
@@ -442,21 +469,19 @@ export function GoogleRegistrations({ state, actor, action }: ViewProps) {
               <div className="flex flex-wrap items-end gap-x-6 gap-y-3 rounded-lg border p-3">
                 <BulkGroup label="Selección">
                   <Badge variant="outline">
-                    {checked.length} de {items.length}
+                    {checkedRows.length} de {visible.length}
                   </Badge>
-                  <Tip text="Marca o desmarca todas las respuestas de esta página.">
+                  <Tip text="Marca o desmarca todas las respuestas visibles de esta página.">
                     <Button
                       variant="outline"
-                      disabled={busy}
+                      disabled={busy || !visible.length}
                       onClick={() =>
                         setChecked(
-                          checked.length === items.length
-                            ? []
-                            : items.map((i) => i.id),
+                          allVisibleChecked ? [] : visible.map((i) => i.id),
                         )
                       }
                     >
-                      {checked.length === items.length
+                      {allVisibleChecked
                         ? "Limpiar selección"
                         : "Seleccionar todas"}
                     </Button>
@@ -466,7 +491,7 @@ export function GoogleRegistrations({ state, actor, action }: ViewProps) {
                   <Tip text="Usa el nombre completo del capitán. Ej.: Juan Pérez López.">
                     <Button
                       variant="outline"
-                      disabled={busy || !checked.length}
+                      disabled={busy || !checkedRows.length}
                       onClick={() =>
                         run(() =>
                           bulkUpdate(
@@ -483,7 +508,7 @@ export function GoogleRegistrations({ state, actor, action }: ViewProps) {
                   <Tip text="Une la primera palabra del nombre de cada jugador. Ej.: Juan-Carlos.">
                     <Button
                       variant="outline"
-                      disabled={busy || !checked.length}
+                      disabled={busy || !checkedRows.length}
                       onClick={() =>
                         run(() =>
                           bulkUpdate(
@@ -502,7 +527,7 @@ export function GoogleRegistrations({ state, actor, action }: ViewProps) {
                   <Tip text="Rellena solo los correos vacíos con uno genérico único (@sin-correo.example.com). No recibe mensajes.">
                     <Button
                       variant="outline"
-                      disabled={busy || !checked.length}
+                      disabled={busy || !checkedRows.length}
                       onClick={() =>
                         run(() =>
                           bulkUpdate(
@@ -546,7 +571,7 @@ export function GoogleRegistrations({ state, actor, action }: ViewProps) {
                   <Tip text="Mueve las respuestas seleccionadas a la categoría elegida.">
                     <Button
                       variant="outline"
-                      disabled={busy || !checked.length || !bulkCategory}
+                      disabled={busy || !checkedRows.length || !bulkCategory}
                       onClick={() =>
                         run(() =>
                           bulkUpdate(
@@ -560,6 +585,71 @@ export function GoogleRegistrations({ state, actor, action }: ViewProps) {
                       Mover
                     </Button>
                   </Tip>
+                </BulkGroup>
+                <BulkGroup label="Decisión">
+                  <Tip text="Acepta las seleccionadas listas para aceptar. Las que requieren revisión o tienen datos incompletos se omiten.">
+                    <Button
+                      variant="outline"
+                      disabled={busy || !checkedRows.length}
+                      onClick={() =>
+                        run(async () => {
+                          const ready = checkedRows.filter(isReady);
+                          const omitted = checkedRows.length - ready.length;
+                          if (!ready.length)
+                            return toast.info(
+                              `Ninguna seleccionada está lista; ${omitted} requieren revisión.`,
+                            );
+                          if (
+                            !window.confirm(
+                              `¿Aceptar ${ready.length} inscripciones seleccionadas? Se crearán equipos nuevos.${omitted ? ` Se omitirán ${omitted} que requieren revisión.` : ""}`,
+                            )
+                          )
+                            return;
+                          try {
+                            await acceptMany(ready, "selected");
+                          } finally {
+                            setChecked([]);
+                            if (omitted)
+                              toast.info(
+                                `${omitted} omitidas por requerir revisión`,
+                              );
+                          }
+                        })
+                      }
+                    >
+                      {progress?.scope === "selected"
+                        ? progress.text
+                        : `Aceptar seleccionadas (${checkedRows.length})`}
+                    </Button>
+                  </Tip>
+                  {admin && (
+                    <Tip text="Descarta las seleccionadas que sigan por revisar. No se crea ninguna inscripción.">
+                      <Button
+                        variant="destructive"
+                        disabled={busy || !checkedRows.length}
+                        onClick={() =>
+                          window.confirm(
+                            `¿Descartar ${checkedRows.length} respuestas seleccionadas? No se creará ninguna inscripción.`,
+                          ) &&
+                          run(async () => {
+                            const r = await mutate(
+                              "/v1/registration-inbox/bulk-discard",
+                              {
+                                tournament_id: tournament.id,
+                                ids: checkedRows.map((i) => i.id),
+                              },
+                            );
+                            setChecked([]);
+                            toast.success(
+                              `${r.discarded} descartadas, ${r.skipped} omitidas`,
+                            );
+                          })
+                        }
+                      >
+                        Descartar seleccionadas ({checkedRows.length})
+                      </Button>
+                    </Tip>
+                  )}
                 </BulkGroup>
               </div>
             </TooltipProvider>
@@ -586,7 +676,7 @@ export function GoogleRegistrations({ state, actor, action }: ViewProps) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {items.map((item) => (
+                {visible.map((item) => (
                   <TableRow key={item.id}>
                     <TableCell>
                       <input
@@ -665,6 +755,28 @@ export function GoogleRegistrations({ state, actor, action }: ViewProps) {
                           Revisar
                         </Button>
                       </Tip>
+                      {admin && (
+                        <Tip text="Descarta esta respuesta sin crear inscripción.">
+                          <Button
+                            disabled={busy || status !== "pending"}
+                            variant="ghost"
+                            onClick={() =>
+                              window.confirm(
+                                "¿Descartar esta respuesta? No se creará ninguna inscripción.",
+                              ) &&
+                              run(async () => {
+                                await resolve(item, "discard");
+                                setChecked((c) =>
+                                  c.filter((x) => x !== item.id),
+                                );
+                                toast.success("Respuesta descartada");
+                              })
+                            }
+                          >
+                            Descartar
+                          </Button>
+                        </Tip>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}

@@ -12,7 +12,10 @@ import {
   Download,
   ChevronLeft,
   ChevronRight,
+  X,
+  Copy,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
@@ -52,14 +55,27 @@ function Tip({ text, children }: { text: string; children: React.ReactNode }) {
 }
 import type { State, Match, Actor, Team, Category } from "@/lib/types";
 import { labels, time, date, API } from "@/lib/api";
+const copy = (text: string, what: string) =>
+  navigator.clipboard
+    .writeText(text)
+    .then(() => toast.success(`${what} copiado`))
+    .catch(() => toast.error("No se pudo copiar"));
 export function Operations({
   state,
   actor,
   action,
   view,
-}: ViewProps & { view: string }) {
+  initialFilter,
+}: ViewProps & { view: string; initialFilter?: string }) {
   const [category, setCategory] = useState("all"),
-    [filter, setFilter] = useState("all"),
+    [filter, setFilter] = useState(initialFilter || "all"),
+    [matchStatus, setMatchStatus] = useState("all"),
+    [court, setCourt] = useState("all"),
+    [day, setDay] = useState("all"),
+    [requestFilter, setRequestFilter] = useState("pending"),
+    [walkover, setWalkover] = useState<Match | null>(null),
+    [woWinner, setWoWinner] = useState("home"),
+    [selection, setSelection] = useState<{ key: string; ids: string[] }>({ key: "", ids: [] }),
     [search, setSearch] = useState(""),
     [modal, setModal] = useState(false),
     [editCategory,setEditCategory]=useState<Category|null>(null),
@@ -88,6 +104,50 @@ export function Operations({
         .includes(search.toLowerCase()),
   );
   const toVerify = state.teams.filter((t) => t.status === "verification");
+  const name = (id: string | null) =>
+    state.teams.find((t) => t.id === id)?.name || "Por definir";
+  // selection is tied to the current filters/page: changing any of them clears it
+  const selectionKey = [category, filter, search, page].join("|");
+  const picked = selection.key === selectionKey ? selection.ids : [];
+  const setPicked = (ids: string[]) => setSelection({ key: selectionKey, ids });
+  const pageTeams = teams.slice(page * 12, page * 12 + 12);
+  const review = (t: Team, status: string, reason = "Revisión rápida", category_id?: string) =>
+    action("/v1/registrations/review", { id: t.id, status, reason, ...(category_id ? { category_id } : {}) });
+  const quick = async (fn: () => Promise<unknown>) => {
+    setBusy(true);
+    try {
+      await fn();
+    } catch {
+    } finally {
+      setBusy(false);
+    }
+  };
+  const reviewBulk = async (status: string) => {
+    await action("/v1/registrations/review-bulk", { ids: picked, status, reason: "Revisión rápida" });
+    setPicked([]);
+  };
+  const shownMatches = matches.filter(
+    (m) =>
+      (matchStatus === "all" || m.status === matchStatus) &&
+      (court === "all" || m.court_id === court) &&
+      (day === "all" || (m.starts_at && date(m.starts_at)) === day) &&
+      (name(m.home_id) + " " + name(m.away_id)).toLowerCase().includes(search.toLowerCase()),
+  );
+  const days = [...new Set(matches.filter((m) => m.starts_at).sort((a, b) => a.starts_at!.localeCompare(b.starts_at!)).map((m) => date(m.starts_at!)))];
+  const pendingRequests = state.requests.filter((r) => r.status === "pending");
+  const requests = state.requests.filter((r) => requestFilter === "all" || r.status === requestFilter);
+  const duplicate = (c: Category) =>
+    quick(() =>
+      action("/v1/categories", {
+        name: `${c.name} (copia)`,
+        capacity: c.capacity,
+        group_size: c.group_size,
+        qualifiers: c.qualifiers,
+        duration_minutes: c.duration_minutes,
+        rest_minutes: c.rest_minutes,
+        rules: { sets: c.rules.sets, games: c.rules.games, superTiebreak: c.rules.superTiebreak, goldenPoint: c.rules.goldenPoint },
+      }),
+    );
   const bulkVerify = async (path: string, message: string, body: Record<string, unknown> = {}) => {
     if (!window.confirm(message)) return;
     setBusy(true);
@@ -98,8 +158,6 @@ export function Operations({
       setBusy(false);
     }
   };
-  const name = (id: string | null) =>
-    state.teams.find((t) => t.id === id)?.name || "Por definir";
   const createCategory = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setBusy(true);
@@ -161,11 +219,46 @@ export function Operations({
                 "approved",
                 "verification",
                 "rejected",
+                "withdrawn",
               ].map((v) => ({
                 value: v,
                 label: v === "all" ? "Todos los estados" : labels[v],
               }))}
             />
+          )}
+          {view === "resultados" && (
+            <>
+              <Choice
+                value={matchStatus}
+                onChange={(v) => {
+                  setMatchStatus(v);
+                  setPage(0);
+                }}
+                options={["all", "unscheduled", "scheduled", "live", "finished", "disputed"].map((v) => ({
+                  value: v,
+                  label: v === "all" ? "Todos los estados" : labels[v],
+                }))}
+              />
+              <Choice
+                value={court}
+                onChange={(v) => {
+                  setCourt(v);
+                  setPage(0);
+                }}
+                options={[
+                  { value: "all", label: "Todas las canchas" },
+                  ...state.courts.map((c) => ({ value: c.id, label: c.name })),
+                ]}
+              />
+              <Choice
+                value={day}
+                onChange={(v) => {
+                  setDay(v);
+                  setPage(0);
+                }}
+                options={[{ value: "all", label: "Todos los días" }, ...days.map((d) => ({ value: d, label: d }))]}
+              />
+            </>
           )}
         </div>
         {view === "categorias" && can("registration") ? (
@@ -213,9 +306,45 @@ export function Operations({
       </div>
       {["inscripciones", "equipos"].includes(view) && (
         <section className="panel">
+          {can("registration") && picked.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 mb-3">
+              <span className="text-sm">{picked.length} seleccionada(s)</span>
+              <Confirm
+                title="Aprobar inscripciones seleccionadas"
+                description={`Se aprobarán ${picked.length} pareja(s). Si alguna no puede aprobarse, no se aplicará ningún cambio.`}
+                onConfirm={() => reviewBulk("approved")}
+              >
+                <Check data-icon="inline-start" />
+                Aprobar seleccionadas
+              </Confirm>
+              <Confirm
+                title="Rechazar inscripciones seleccionadas"
+                description={`Se rechazarán ${picked.length} pareja(s). Si alguna no puede rechazarse, no se aplicará ningún cambio.`}
+                destructive
+                confirmLabel="Rechazar"
+                onConfirm={() => reviewBulk("rejected")}
+              >
+                <X data-icon="inline-start" />
+                Rechazar seleccionadas
+              </Confirm>
+              <Button variant="ghost" size="sm" onClick={() => setPicked([])}>
+                Limpiar selección
+              </Button>
+            </div>
+          )}
           <Table>
             <TableHeader>
               <TableRow>
+                {can("registration") && (
+                  <TableHead>
+                    <input
+                      aria-label="Seleccionar todas las parejas de la página"
+                      type="checkbox"
+                      checked={!!pageTeams.length && pageTeams.every((t) => picked.includes(t.id))}
+                      onChange={(e) => setPicked(e.target.checked ? pageTeams.map((t) => t.id) : [])}
+                    />
+                  </TableHead>
+                )}
                 <TableHead>Pareja / jugadores</TableHead>
                 <TableHead>Categoría</TableHead>
                 <TableHead>Capitán</TableHead>
@@ -224,8 +353,22 @@ export function Operations({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {teams.slice(page * 12, page * 12 + 12).map((t) => (
+              {pageTeams.map((t) => {
+                const cat = state.categories.find((c) => c.id === t.category_id);
+                return (
                 <TableRow key={t.id}>
+                  {can("registration") && (
+                    <TableCell>
+                      <input
+                        aria-label={`Seleccionar a ${t.name}`}
+                        type="checkbox"
+                        checked={picked.includes(t.id)}
+                        onChange={(e) =>
+                          setPicked(e.target.checked ? [...picked, t.id] : picked.filter((id) => id !== t.id))
+                        }
+                      />
+                    </TableCell>
+                  )}
                   <TableCell>
                     <div className="team-cell">
                       <Avatar>
@@ -242,30 +385,97 @@ export function Operations({
                     </div>
                   </TableCell>
                   <TableCell>
-                    {state.categories.find((c) => c.id === t.category_id)?.name}
+                    {can("registration") && cat && !cat.draw_published && ["approved", "rejected", "withdrawn"].includes(t.status) ? (
+                      <div className="min-w-40">
+                        <Choice
+                          value={t.category_id}
+                          onChange={(v) => v !== t.category_id && void quick(() => review(t, t.status, "Cambio de categoría", v))}
+                          options={state.categories
+                            .filter((c) => !c.draw_published)
+                            .map((c) => ({ value: c.id, label: c.name }))}
+                        />
+                      </div>
+                    ) : (
+                      cat?.name
+                    )}
                   </TableCell>
                   <TableCell>
                     <strong>{t.players[t.captain || 0]?.name}</strong>
-                    <small className="block text-muted-foreground">
+                    <small className="flex items-center gap-1 text-muted-foreground">
                       {t.email}
+                      {t.email && (
+                        <Tip text="Copiar correo">
+                          <Button
+                            size="icon-xs"
+                            variant="ghost"
+                            aria-label={`Copiar correo de ${t.name}`}
+                            onClick={() => copy(t.email!, "Correo")}
+                          >
+                            <Copy />
+                          </Button>
+                        </Tip>
+                      )}
                     </small>
                   </TableCell>
                   <TableCell>
                     <Status value={t.status} />
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      aria-label={`Ver detalle de ${t.name}`}
-                      onClick={() => setSelected(t)}
-                    >
-                      Ver detalle
-                      <ArrowUpRight data-icon="inline-end" />
-                    </Button>
+                    <div className="inline-flex items-center gap-1">
+                      {can("registration") && t.status === "pending" && (
+                        <>
+                          <Tip text="Aprobar">
+                            <Button
+                              size="icon-sm"
+                              variant="outline"
+                              aria-label={`Aprobar a ${t.name}`}
+                              disabled={busy}
+                              onClick={() => void quick(() => review(t, "approved"))}
+                            >
+                              <Check />
+                            </Button>
+                          </Tip>
+                          <Tip text="Rechazar">
+                            <Confirm
+                              title={`Rechazar a ${t.name}`}
+                              description="La inscripción quedará rechazada."
+                              destructive
+                              confirmLabel="Rechazar"
+                              disabled={busy}
+                              onConfirm={() => review(t, "rejected")}
+                            >
+                              <X />
+                              <span className="sr-only">Rechazar</span>
+                            </Confirm>
+                          </Tip>
+                        </>
+                      )}
+                      {can("registration") && t.status === "approved" && (
+                        <Confirm
+                          title={`Retirar a ${t.name}`}
+                          description="La pareja quedará retirada del torneo."
+                          destructive
+                          confirmLabel="Retirar"
+                          disabled={busy}
+                          onConfirm={() => review(t, "withdrawn", "Retiro rápido")}
+                        >
+                          Retirar
+                        </Confirm>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        aria-label={`Ver detalle de ${t.name}`}
+                        onClick={() => setSelected(t)}
+                      >
+                        Ver detalle
+                        <ArrowUpRight data-icon="inline-end" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
-              ))}
+                );
+              })}
             </TableBody>
           </Table>
           {!teams.length && (
@@ -353,6 +563,7 @@ export function Operations({
                     </dd>
                   </div>
                 </dl>
+                {can("registration")&&<div className="form-actions"><Button variant="outline" disabled={busy} onClick={()=>void duplicate(c)}>Duplicar</Button></div>}
                 {can("registration")&&!c.draw_published&&<div className="form-actions"><Button variant="outline" onClick={()=>{setEditCategory(c);setSetCount(String(c.rules.sets));setModal(true);}}>Editar reglas</Button>{!state.teams.some((t)=>t.category_id===c.id)&&<Button variant="destructive" disabled={busy} onClick={()=>bulkVerify("/v1/categories/delete",`¿Eliminar la categoría "${c.name}"? Esta acción no se puede deshacer.`,{id:c.id})}>Eliminar</Button>}</div>}
               </section>
             ))}
@@ -396,6 +607,18 @@ export function Operations({
                 Vista previa
               </Button>
               </Tip>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {state.categories.map((c) => (
+                <Button
+                  key={c.id}
+                  size="sm"
+                  variant={category === c.id ? "default" : "outline"}
+                  onClick={() => setCategory(c.id)}
+                >
+                  {c.name}
+                </Button>
+              ))}
             </div>
             {category === "all" && (
               <small>Selecciona una categoría para sortear.</small>
@@ -458,12 +681,8 @@ export function Operations({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {matches
-                .filter((m) =>
-                  (name(m.home_id) + " " + name(m.away_id))
-                    .toLowerCase()
-                    .includes(search.toLowerCase()),
-                )
+              {shownMatches
+                .slice(page * 12, page * 12 + 12)
                 .map((m) => (
                   <TableRow key={m.id}>
                     <TableCell>
@@ -503,17 +722,29 @@ export function Operations({
                       {can("referee") && m.home_id && m.away_id && (
                         <div className="flex gap-2">
                           {m.status === "scheduled" && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() =>
-                                void action("/v1/matches/start", {
-                                  id: m.id,
-                                }).catch(() => {})
-                              }
+                            <Confirm
+                              title="Iniciar partido"
+                              description={`${name(m.home_id)} vs ${name(m.away_id)} pasará a estar en curso.`}
+                              confirmLabel="Iniciar"
+                              onConfirm={() => action("/v1/matches/start", { id: m.id })}
                             >
                               Iniciar
-                            </Button>
+                            </Confirm>
+                          )}
+                          {m.status !== "finished" && (
+                            <Tip text="Registrar walkover (W.O.)">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                aria-label={`Registrar walkover de ${name(m.home_id)} contra ${name(m.away_id)}`}
+                                onClick={() => {
+                                  setWoWinner("home");
+                                  setWalkover(m);
+                                }}
+                              >
+                                W.O.
+                              </Button>
+                            </Tip>
                           )}
                           <Button
                             variant="outline"
@@ -530,12 +761,42 @@ export function Operations({
                 ))}
             </TableBody>
           </Table>
-          {!matches.length && (
+          {!matches.length ? (
             <EmptyState
               title="El primer partido está por llegar"
               description="Publica un sorteo para generar los encuentros de grupos."
             />
+          ) : (
+            !shownMatches.length && (
+              <EmptyState title="No hay partidos con estos filtros" description="Prueba cambiar el estado, la cancha, el día o la búsqueda." />
+            )
           )}
+          <div className="pagination">
+            <span>{shownMatches.length} partidos</span>
+            <div>
+              <Button
+                size="icon-sm"
+                variant="outline"
+                aria-label="Página anterior"
+                disabled={page === 0}
+                onClick={() => setPage((p) => p - 1)}
+              >
+                <ChevronLeft />
+              </Button>
+              <span>
+                {page + 1} / {Math.max(1, Math.ceil(shownMatches.length / 12))}
+              </span>
+              <Button
+                size="icon-sm"
+                variant="outline"
+                aria-label="Página siguiente"
+                disabled={(page + 1) * 12 >= shownMatches.length}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                <ChevronRight />
+              </Button>
+            </div>
+          </div>
         </section>
       )}
       {view === "cuadro" && (
@@ -555,7 +816,44 @@ export function Operations({
       )}
       {view === "solicitudes" && (
         <div className="flex flex-col gap-4">
-          {state.requests.map((r) => (
+          <div className="flex flex-wrap items-center gap-2">
+            {["pending", "applied", "rejected", "all"].map((v) => (
+              <Button
+                key={v}
+                size="sm"
+                variant={requestFilter === v ? "default" : "outline"}
+                onClick={() => setRequestFilter(v)}
+              >
+                {v === "all" ? "Todas" : labels[v]}
+              </Button>
+            ))}
+            {can("registration") && pendingRequests.length > 0 && (
+              <div className="ml-auto flex gap-2">
+                <Confirm
+                  title="Rechazar todas las solicitudes pendientes"
+                  description={`Se rechazarán ${Math.min(pendingRequests.length, 200)} solicitud(es) pendiente(s).`}
+                  destructive
+                  confirmLabel="Rechazar todas"
+                  onConfirm={() =>
+                    action("/v1/requests/review-bulk", { ids: pendingRequests.slice(0, 200).map((r) => r.id), approve: false })
+                  }
+                >
+                  Rechazar todas
+                </Confirm>
+                <Confirm
+                  title="Aprobar todas las solicitudes pendientes"
+                  description={`Se aplicarán ${Math.min(pendingRequests.length, 200)} cambio(s) solicitado(s). Si alguno falla, no se aplicará ninguno.`}
+                  confirmLabel="Aprobar todas"
+                  onConfirm={() =>
+                    action("/v1/requests/review-bulk", { ids: pendingRequests.slice(0, 200).map((r) => r.id), approve: true })
+                  }
+                >
+                  Aprobar todas las pendientes ({pendingRequests.length})
+                </Confirm>
+              </div>
+            )}
+          </div>
+          {requests.map((r) => (
             <section className="panel request-card" key={r.id}>
               <div className="panel-heading">
                 <div>
@@ -620,9 +918,9 @@ export function Operations({
               )}
             </section>
           ))}
-          {!state.requests.length && (
+          {!requests.length && (
             <EmptyState
-              title="No hay solicitudes pendientes"
+              title={requestFilter === "pending" ? "No hay solicitudes pendientes" : "No hay solicitudes con este filtro"}
               description="Las solicitudes de los capitanes aparecerán aquí con la comparación del cambio."
             />
           )}
@@ -745,6 +1043,41 @@ export function Operations({
             action={action}
             close={() => setSelected(null)}
           />
+        )}
+      </Modal>
+      <Modal
+        title="Registrar walkover (W.O.)"
+        description={walkover ? `${name(walkover.home_id)} vs ${name(walkover.away_id)}. Elige la pareja ganadora.` : undefined}
+        open={!!walkover}
+        onClose={() => !busy && setWalkover(null)}
+      >
+        {walkover && (
+          <FieldGroup>
+            <Choice
+              label="Ganador"
+              value={woWinner}
+              onChange={setWoWinner}
+              options={[
+                { value: "home", label: name(walkover.home_id) },
+                { value: "away", label: name(walkover.away_id) },
+              ]}
+            />
+            <Button
+              disabled={busy}
+              onClick={() =>
+                void quick(async () => {
+                  await action("/v1/results", {
+                    id: walkover.id,
+                    score: { sets: [], reason: "walkover", winner: woWinner },
+                    confirmed: true,
+                  });
+                  setWalkover(null);
+                })
+              }
+            >
+              Confirmar W.O.
+            </Button>
+          </FieldGroup>
         )}
       </Modal>
       {result && (
