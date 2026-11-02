@@ -109,6 +109,7 @@ const nav = [
       ["resultados", "Partidos y resultados", Flag],
       ["cuadro", "Cuadro de eliminación", Trophy],
       ["estadisticas", "Estadísticas", ChartNoAxesCombined],
+      ["patrocinadores", "Patrocinadores", Handshake],
       ["ajustes", "Ajustes del torneo", Settings],
     ],
   },
@@ -116,7 +117,6 @@ const nav = [
     title: "GESTIÓN",
     items: [
       ["solicitudes", "Solicitudes", Inbox],
-      ["patrocinadores", "Patrocinadores", Handshake],
       ["colaboradores", "Colaboradores", UserRoundCog],
       ["configuracion", "Configuración del club", Settings],
       ["recursos", "Reutilizar recursos", Layers],
@@ -124,7 +124,7 @@ const nav = [
     ],
   },
 ] as const;
-const globalViews = ["solicitudes", "patrocinadores", "colaboradores", "configuracion", "archivo", "recursos"];
+const globalViews = ["solicitudes", "colaboradores", "configuracion", "archivo", "recursos"];
 export function Dashboard({ slug }: { slug: string }) {
   const [state, setState] = useState<State | null>(null),
     [actor, setActor] = useState<Actor | null>(null),
