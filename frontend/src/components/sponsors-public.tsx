@@ -11,8 +11,8 @@ import {
   sponsorTiers,
   usePublic,
 } from "./public";
-export function SponsorsPage({ slug }: { slug: string }) {
-  const { state, error } = usePublic(slug);
+export function SponsorsPage({ slug, torneo }: { slug: string; torneo: string }) {
+  const { state, error } = usePublic(slug, torneo);
   const tiers = state && sponsorTiers(state);
   const groups = tiers
     ? ([
@@ -22,9 +22,9 @@ export function SponsorsPage({ slug }: { slug: string }) {
       ] as const)
     : [];
   return (
-    <PublicShell slug={slug} orgName={state?.organization?.name}>
+    <PublicShell slug={slug} orgName={state?.organization?.name} torneo={torneo}>
       <main className="registration-page wide sponsors-page">
-        <Link className="back-link" href={`/${slug}/portal`}>
+        <Link className="back-link" href={`/${slug}/${torneo}`}>
           <ArrowLeft size={15} />
           Volver al torneo
         </Link>

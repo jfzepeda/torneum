@@ -178,17 +178,17 @@ export function OfficialSponsors({ state }: { state: State }) {
 }
 export function SupportSponsors({
   state,
-  slug,
+  base,
 }: {
   state: State;
-  slug: string;
+  base: string;
 }) {
   const { support } = sponsorTiers(state);
   if (!support.length) return null;
   return (
     <section className="sponsor-support">
       <SponsorHeading>
-        <Link href={`/${slug}/patrocinadores`}>CON EL APOYO DE</Link>
+        <Link href={`${base}/patrocinadores`}>CON EL APOYO DE</Link>
       </SponsorHeading>
       <div className="sponsor-row">
         {support.map((s) => (

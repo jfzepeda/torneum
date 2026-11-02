@@ -19,8 +19,9 @@ import { PublicShell, usePublic } from "./shell";
 const registeredCookie = (tournamentId: string) => `torneum_inscrito_${tournamentId}`;
 const hasRegistered = (tournamentId: string) =>
   document.cookie.split("; ").some((c) => c.startsWith(registeredCookie(tournamentId) + "="));
-export function Registration({ slug }: { slug: string }) {
-  const { state, error } = usePublic(slug);
+export function Registration({ slug, torneo }: { slug: string; torneo: string }) {
+  const { state, error } = usePublic(slug, torneo);
+  const base = `/${slug}/${torneo}`;
   const [staff, setStaff] = useState(false),
     [already, setAlready] = useState(false);
   const tournamentId = state?.tournament?.id;
@@ -46,9 +47,9 @@ export function Registration({ slug }: { slug: string }) {
       (category || state.categories.find((c) => !c.draw_published)?.id),
   );
   return (
-    <PublicShell slug={slug} orgName={state?.organization?.name}>
+    <PublicShell slug={slug} orgName={state?.organization?.name} torneo={torneo}>
       <main className="registration-page">
-        <Link className="back-link" href={`/${slug}/portal`}>
+        <Link className="back-link" href={base}>
           <ArrowLeft size={15} />
           Volver al torneo
         </Link>
@@ -74,13 +75,13 @@ export function Registration({ slug }: { slug: string }) {
               cambiar datos o completar el pago, entra a Mi pareja. Si necesitas
               inscribir a otra pareja, contacta al organizador.
             </p>
-            <Button nativeButton={false} render={<Link href={`/${slug}/mi-pareja`} />}>
+            <Button nativeButton={false} render={<Link href={`${base}/mi-pareja`} />}>
               Ir a mi pareja
             </Button>
             <Button
               variant="outline"
               nativeButton={false}
-              render={<Link href={`/${slug}/portal`} />}
+              render={<Link href={base} />}
             >
               Volver al torneo
             </Button>
@@ -101,7 +102,7 @@ export function Registration({ slug }: { slug: string }) {
             <Button
               variant="outline"
               nativeButton={false}
-              render={<Link href={`/${slug}/portal`} />}
+              render={<Link href={base} />}
             >
               Volver al torneo
             </Button>

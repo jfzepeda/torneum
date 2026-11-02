@@ -96,7 +96,7 @@ export async function registerPaymentRoutes(app: FastifyInstance) {
         a.organization_id,
       ])
     ).rows[0];
-    const url = `${front()}/${org.slug}?stripe=return`;
+    const url = `${front()}/${org.slug}/panel?stripe=return`;
     const link = await client.accountLinks.create({
       account: accountId,
       type: "account_onboarding",

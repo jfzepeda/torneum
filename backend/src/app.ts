@@ -1650,7 +1650,7 @@ async function registerCommercial(post: Post, app: FastifyInstance) {
         a.organization_id,
       ])
     ).rows[0];
-    return reply.redirect(front() + "/" + o.slug + "?view=patrocinadores");
+    return reply.redirect(front() + "/" + o.slug + "/panel?view=patrocinadores");
   });
   post(
     "/v1/chatkit/session",

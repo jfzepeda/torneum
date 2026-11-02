@@ -11,8 +11,8 @@ import { TeamProfile } from "../profile";
 import { get, mutate, date, time } from "@/lib/api";
 import type { Team, Match } from "@/lib/types";
 import { PublicShell, usePublic } from "./shell";
-export function MyTeam({ slug }: { slug: string }) {
-  const { state, refresh } = usePublic(slug);
+export function MyTeam({ slug, torneo }: { slug: string; torneo: string }) {
+  const { state, refresh } = usePublic(slug, torneo);
   const [registrationPayment, setRegistrationPayment] =
     useState<RegistrationPayment | null>(null);
   const [team, setTeam] = useState<Team | null>(null),
@@ -64,7 +64,7 @@ export function MyTeam({ slug }: { slug: string }) {
     }
   };
   return (
-    <PublicShell slug={slug} orgName={state?.organization?.name}>
+    <PublicShell slug={slug} orgName={state?.organization?.name} torneo={torneo}>
       <main className="registration-page wide">
         <div className="eyebrow">ESPACIO DEL CAPITÁN</div>
         <h1>{team?.name || "Gestiona tu inscripción."}</h1>

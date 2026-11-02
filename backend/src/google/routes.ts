@@ -664,7 +664,7 @@ export function registerGoogleRoutes(app: FastifyInstance) {
         (process.env.FRONTEND_URL || "http://127.0.0.1:3000") +
           "/" +
           a.organization_slug +
-          "?view=google",
+          "/panel?view=google",
       );
     },
   );

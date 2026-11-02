@@ -54,7 +54,7 @@ function Tip({ text, children }: { text: string; children: React.ReactNode }) {
   );
 }
 import type { State, Match, Actor, Team, Category } from "@/lib/types";
-import { labels, time, date, API } from "@/lib/api";
+import { labels, time, date, API, tournamentSlugs } from "@/lib/api";
 const copy = (text: string, what: string) =>
   navigator.clipboard
     .writeText(text)
@@ -267,7 +267,7 @@ export function Operations({
             Nueva categoría
           </Button>
         ) : view === "inscripciones" ? (
-          <Button nativeButton={false} render={<Link href={`/${state.organization.slug}/inscripcion`} />}>
+          <Button nativeButton={false} render={<Link href={`/${state.organization.slug}/${state.tournament ? tournamentSlugs(state.tournaments).get(state.tournament.id) : ""}/inscripcion`} />}>
             <Plus data-icon="inline-start" />
             Inscribir pareja
           </Button>

@@ -14,12 +14,13 @@ import { date, time, place, tournamentDates } from "@/lib/api";
 import { PublicShell, usePublic } from "./shell";
 import { TournamentDetails } from "./tournament-details";
 import { PresentedBy, OfficialSponsors, SupportSponsors } from "./sponsor-sections";
-export function Portal({ slug }: { slug: string }) {
-  const { state, error, selectTournament, slugOf } = usePublic(slug);
+export function Portal({ slug, torneo }: { slug: string; torneo: string }) {
+  const { state, error } = usePublic(slug, torneo);
+  const base = `/${slug}/${torneo}`;
   const [category, setCategory] = useState("all");
   if (!state)
     return (
-      <PublicShell slug={slug}>
+      <PublicShell slug={slug} torneo={torneo}>
         <main className="public-main">
           {error === "Club no encontrado" ? (
             <EmptyState
@@ -38,7 +39,7 @@ export function Portal({ slug }: { slug: string }) {
     );
   if (!state.tournament)
     return (
-      <PublicShell slug={slug} orgName={state?.organization?.name}>
+      <PublicShell slug={slug} orgName={state?.organization?.name} torneo={torneo}>
         <EmptyState
           title="No hay torneo activo"
           description="Cuando el club publique un torneo lo verás aquí. Vuelve pronto."
@@ -55,12 +56,7 @@ export function Portal({ slug }: { slug: string }) {
     <PublicShell
       slug={slug}
       orgName={state?.organization?.name}
-      picker={{
-        value: t.id,
-        slug: slugOf(t.id),
-        options: state.tournaments.map((x) => ({ value: x.id, label: x.name })),
-        onChange: selectTournament,
-      }}
+      torneo={torneo}
     >
       <main className="public-main">
         <section className="public-hero">
@@ -82,7 +78,7 @@ export function Portal({ slug }: { slug: string }) {
               size="lg"
               disabled={!t.registration_open}
               nativeButton={false}
-              render={<Link href={`/${slug}/inscripcion?torneo=${slugOf(t.id)}`} />}
+              render={<Link href={`${base}/inscripcion`} />}
             >
               {t.registration_open
                 ? "Inscribir mi pareja"
@@ -100,7 +96,7 @@ export function Portal({ slug }: { slug: string }) {
           </div>
         </section>
         <PresentedBy state={state} />
-        <TournamentDetails state={state} slug={slug} />
+        <TournamentDetails state={state} base={base} />
         <OfficialSponsors state={state} />
         <Tabs defaultValue="results">
           <div className="view-toolbar">
@@ -217,7 +213,7 @@ export function Portal({ slug }: { slug: string }) {
             />
           </TabsContent>
         </Tabs>
-        <SupportSponsors state={state} slug={slug} />
+        <SupportSponsors state={state} base={base} />
       </main>
     </PublicShell>
   );

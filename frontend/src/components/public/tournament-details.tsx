@@ -27,10 +27,10 @@ const highlightIcons: Record<Highlight["icon"], typeof Trophy> = {
 };
 export function TournamentDetails({
   state,
-  slug,
+  base,
 }: {
   state: State;
-  slug: string;
+  base: string;
 }) {
   const t = state.tournament!;
   const courts = state.courts.filter((c) => c.enabled);
@@ -108,7 +108,7 @@ export function TournamentDetails({
             className="detail-register"
             disabled={!t.registration_open}
             nativeButton={false}
-            render={<Link href={`/${slug}/inscripcion`} />}
+            render={<Link href={`${base}/inscripcion`} />}
           >
             Inscribirme
             <ArrowUpRight data-icon="inline-end" />

@@ -10,7 +10,7 @@ export function ClubFinder({ id }: { id?: string }) {
   const [slug, setSlug] = useState("");
   const go = (organizer: boolean) => {
     const s = slug.trim().toLowerCase();
-    if (s) router.push(`/${encodeURIComponent(s)}${organizer ? "" : "/portal"}`);
+    if (s) router.push(`/${encodeURIComponent(s)}${organizer ? "/panel" : ""}`);
   };
   return (
     <form

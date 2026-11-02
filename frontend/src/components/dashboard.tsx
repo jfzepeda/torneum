@@ -260,7 +260,7 @@ export function Dashboard({ slug }: { slug: string }) {
   const title = selected?.[1] || "Inicio";
   const publicLink = (path: string) => {
     const s = state.tournament ? tournamentSlugs(state.tournaments).get(state.tournament.id) : "";
-    return s ? `${path}?torneo=${s}` : path;
+    return s ? `/${slug}/${s}${path}` : `/${slug}`;
   };
   const props = { state: global && state.management ? { ...state, ...state.management, tournament: null } : state, actor, action };
   return (
@@ -269,7 +269,7 @@ export function Dashboard({ slug }: { slug: string }) {
     >
       <Sidebar>
         <SidebarHeader>
-          <Link href={`/${slug}`} className="brand">
+          <Link href={`/${slug}/panel`} className="brand">
             <span className="brand-mark">t</span>torneum
             <span className="brand-period">.</span>
           </Link>
@@ -380,7 +380,7 @@ export function Dashboard({ slug }: { slug: string }) {
             <Button
               variant="outline"
               nativeButton={false}
-              render={<Link href={publicLink(`/${slug}/portal`)} />}
+              render={<Link href={publicLink("")} />}
             >
               Ver portal público
               <ArrowUpRight data-icon="inline-end" />
@@ -411,7 +411,7 @@ export function Dashboard({ slug }: { slug: string }) {
             {view === "inicio" && state.tournament ? (
               <Button
                 nativeButton={false}
-                render={<Link href={publicLink(`/${slug}/inscripcion`)} />}
+                render={<Link href={publicLink("/inscripcion")} />}
               >
                 <Plus data-icon="inline-start" />
                 Nueva inscripción
