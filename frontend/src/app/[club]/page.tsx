@@ -5,5 +5,5 @@ export default async function Page({
   params: Promise<{ club: string }>;
 }) {
   const { club } = await params;
-  return <LegacyRedirect slug={club} page="" />;
+  return <LegacyRedirect slug={club} page="" panelQuery />;
 }

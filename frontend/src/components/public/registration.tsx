@@ -13,7 +13,7 @@ import {
   defaultSchema,
 } from "../registration-fields";
 import { money } from "../payments";
-import { get, mutate } from "@/lib/api";
+import { get, mutate, tournamentSlugs } from "@/lib/api";
 import { PublicShell, usePublic } from "./shell";
 // Marca local para disuadir inscripciones repetidas desde el mismo navegador (no es una garantía).
 const registeredCookie = (tournamentId: string) => `torneum_inscrito_${tournamentId}`;
@@ -218,7 +218,13 @@ export function Verification({ slug }: { slug: string }) {
       return;
     }
     void mutate("/v1/verify", { token })
-      .then(() => location.replace(`/${slug}/mi-pareja`))
+      .then(async (r) => {
+        // Lleva al capitán al torneo en el que se inscribió; si no se resuelve, a la ruta sin torneo (redirige al torneo por defecto).
+        const torneo = await get<{ tournaments: { id: string; name: string }[] }>(`/v1/public/${slug}`)
+          .then((s) => tournamentSlugs(s.tournaments).get(String(r.tournament_id || "")))
+          .catch(() => undefined);
+        location.replace(torneo ? `/${slug}/${torneo}/mi-pareja` : `/${slug}/mi-pareja`);
+      })
       .catch((e) => setStatus(e.message));
   }, []);
   return (

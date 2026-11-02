@@ -165,7 +165,7 @@ export function Platform() {
                 <TableCell>{o.name}</TableCell>
                 <TableCell>
                   <span className="inline-flex items-center gap-2">
-                    <Link href={`/${o.slug}`}>{o.slug}</Link>
+                    <Link href={`/${o.slug}/panel`}>{o.slug}</Link>
                     <Button
                       size="icon-sm"
                       variant="ghost"
@@ -320,7 +320,7 @@ export function Platform() {
                 Copiar
               </Button>
             </p>
-            <Link href={`/${created.slug}`}>Ir a /{created.slug}</Link>
+            <Link href={`/${created.slug}/panel`}>Ir a /{created.slug}</Link>
           </div>
         )}
       </Modal>

@@ -54,6 +54,7 @@ const base = {
     registration_open: true,
     registration_schema: schema,
   },
+  tournaments: [{ id: tournament, name: "Copa Google" }],
   categories: [
     {
       id: category,
@@ -197,7 +198,7 @@ test("public registration captures per-player fields and displays a private revi
   page.on("pageerror", (e) => errors.push(e.message));
   const writes = await mockApi(page);
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/google-e2e/inscripcion");
+  await page.goto("/google-e2e/copa-google/inscripcion");
   await page.getByLabel("Nombre del equipo", { exact: true }).fill("Cometas");
   await page
     .getByLabel("Nombre del participante 1", { exact: true })
@@ -220,7 +221,7 @@ test("public mapper works with OAuth disabled and saves selected targets", async
   page,
 }) => {
   const writes = await mockApi(page);
-  await page.goto("/google-e2e?view=google");
+  await page.goto("/google-e2e/panel?view=google");
   await page
     .getByRole("button", { name: "Google Forms / Sheets", exact: true })
     .click();
@@ -256,7 +257,7 @@ test("yellow review links the original and generated forms use the category sche
   page,
 }) => {
   const writes = await mockApi(page, { oauth: true, inbox: true });
-  await page.goto("/google-e2e?view=google");
+  await page.goto("/google-e2e/panel?view=google");
   await expect(
     page.getByText("Amarillo · revisar", { exact: true }),
   ).toBeVisible();
@@ -290,7 +291,7 @@ test("organizer configures an extra field and uses the shared internal registrat
   page,
 }) => {
   const writes = await mockApi(page);
-  await page.goto("/google-e2e?view=google");
+  await page.goto("/google-e2e/panel?view=google");
   await page
     .getByRole("button", { name: "Campos de inscripción", exact: true })
     .click();

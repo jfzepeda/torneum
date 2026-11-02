@@ -7,11 +7,16 @@ import { EmptyState } from "../common";
 import { PublicShell } from "./shell";
 
 /** Rutas sin torneo (`/club/portal`, enlaces de correos…): llevan a `/club/torneo[/pagina]` con el torneo por defecto o el de `?torneo=`. */
-export function LegacyRedirect({ slug, page }: { slug: string; page: string }) {
+export function LegacyRedirect({ slug, page, panelQuery }: { slug: string; page: string; panelQuery?: boolean }) {
   const router = useRouter();
   const [error, setError] = useState("");
   useEffect(() => {
     const params = new URLSearchParams(location.search);
+    // `/club?view=…&tournament=…` era el panel: esos enlaces guardados siguen llegando al panel.
+    if (panelQuery && ["view", "tournament", "status", "stripe"].some((k) => params.has(k))) {
+      router.replace(`/${slug}/panel${location.search}${location.hash}`);
+      return;
+    }
     const wanted = params.get("torneo");
     params.delete("torneo");
     const rest = params.size ? `?${params}` : "";
@@ -25,7 +30,7 @@ export function LegacyRedirect({ slug, page }: { slug: string; page: string }) {
         router.replace(`/${slug}/${slugs.get(target.id)}${page ? "/" + page : ""}${rest}${location.hash}`);
       })
       .catch((e) => setError((e as Error).message));
-  }, [slug, page, router]);
+  }, [slug, page, panelQuery, router]);
   return (
     <PublicShell slug={slug}>
       {error && <EmptyState title={error} description="Revisa la dirección o pide el enlace correcto a tu club." />}
