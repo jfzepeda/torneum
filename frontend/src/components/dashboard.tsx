@@ -208,12 +208,12 @@ export function Dashboard({ slug }: { slug: string }) {
     setView(target);
     setViewStatus(status);
     setSearch("");
-    history.pushState(null, "", tournamentLink(`/${slug}?view=${target}${status ? `&status=${status}` : ""}`, selectedId.current));
+    history.pushState(null, "", tournamentLink(`/${slug}/panel?view=${target}${status ? `&status=${status}` : ""}`, selectedId.current));
   };
   const selectTournament = (id: string) => {
     requestVersion.current++;
     selectedId.current = id || null;
-    history.pushState(null, "", tournamentLink(`/${slug}?view=${view}`, id));
+    history.pushState(null, "", tournamentLink(`/${slug}/panel?view=${view}`, id));
     setState(null); setLoaded(false); setChat(false);
     void refresh();
   };
