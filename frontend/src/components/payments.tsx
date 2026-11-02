@@ -4,6 +4,7 @@ import { get, mutate } from "@/lib/api";
 import type { State, Category } from "@/lib/types";
 import { toast } from "sonner";
 import { Button } from "./ui/button";
+import { ChevronDown } from "lucide-react";
 import { TextField, DateTimeField, Submit, Choice, formValue } from "./common";
 export type RegistrationPayment = {
   id: string;
@@ -124,14 +125,16 @@ function CategoryPayment({
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   return (
-    <details className="panel p-6">
-    <summary className="cursor-pointer">
-      <h3 className="inline">
-        {category.name} · {category.capacity} cupos
-      </h3>
+    <details className="panel group overflow-hidden">
+    <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-muted/40 [&::-webkit-details-marker]:hidden">
+      <div className="min-w-0">
+        <h3 className="m-0 truncate text-base font-semibold">{category.name}</h3>
+        <p className="m-0 text-sm text-muted-foreground">{category.capacity} cupos</p>
+      </div>
+      <ChevronDown aria-hidden className="size-5 shrink-0 text-muted-foreground transition-transform duration-200 group-open:rotate-180" />
     </summary>
     <form
-      className="space-y-3 pt-4"
+      className="space-y-3 border-t px-5 pt-4 pb-5"
       onSubmit={async (e) => {
         e.preventDefault();
         setBusy(true);

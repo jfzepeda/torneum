@@ -371,6 +371,7 @@ export function Administration({
   if (!t) return <EmptyState title="Selecciona un torneo" description="Los ajustes de un torneo aparecen al seleccionarlo en el sidebar." />;
   return (
     <div className="settings-layout">
+      <div className="min-w-0 space-y-6">
       <section className="panel settings-form">
         <div className="panel-heading">
           <div>
@@ -526,8 +527,10 @@ export function Administration({
           </FieldGroup>
         </form>
       </section>
+      <PaymentSettings state={state} scope="categories" />
+      </div>
+      <div className="min-w-0 space-y-6">
       <PaymentSettings state={state} scope="tournament" />
-      <section className="panel p-5"><h2>Archivar torneo</h2><p>Se conserva su historial. Todos los partidos deben haber terminado.</p><Confirm title={`Archivar ${t.name}`} description="Este torneo dejará de aceptar inscripciones. Los demás torneos seguirán abiertos." onConfirm={() => action("/v1/workspaces/archive", {tournament_id:t.id})}>Archivar torneo</Confirm></section>
       <section className="panel">
         <div className="panel-heading">
           <h2>Historial de actividad</h2>
@@ -556,7 +559,8 @@ export function Administration({
           ))}
         </div>
       </section>
-      <PaymentSettings state={state} scope="categories" />
+      <section className="panel p-5"><h2>Archivar torneo</h2><p>Se conserva su historial. Todos los partidos deben haber terminado.</p><Confirm title={`Archivar ${t.name}`} description="Este torneo dejará de aceptar inscripciones. Los demás torneos seguirán abiertos." onConfirm={() => action("/v1/workspaces/archive", {tournament_id:t.id})}>Archivar torneo</Confirm></section>
+      </div>
     </div>
   );
 }
