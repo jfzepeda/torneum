@@ -57,6 +57,7 @@ export function Sponsors({ state, actor, action }: ViewProps) {
     [preview, setPreview] = useState<Message | null>(null),
     [selected, setSelected] = useState<string[]>([]),
     [filter, setFilter] = useState("all"),
+    [tournamentFilter, setTournamentFilter] = useState("all"),
     [picked, setPicked] = useState<string[]>([]),
     [search, setSearch] = useState(""),
     [bulkStatus, setBulkStatus] = useState("reviewed"),
@@ -72,7 +73,8 @@ export function Sponsors({ state, actor, action }: ViewProps) {
     );
   const draft = typeof editing === "object" ? editing : null;
   const query = search.trim().toLowerCase();
-  const visible = state.sponsors.filter(
+  const scoped = state.sponsors.filter((s) => tournamentFilter === "all" || s.tournament_id === tournamentFilter);
+  const visible = scoped.filter(
       (s) =>
         (filter === "all" || s.status === filter) &&
         (!query || s.name.toLowerCase().includes(query) || (s.email || "").toLowerCase().includes(query)),
@@ -133,10 +135,23 @@ export function Sponsors({ state, actor, action }: ViewProps) {
                 }}
               >
                 {f === "all" ? "Todos" : labels[f]} (
-                {f === "all" ? state.sponsors.length : state.sponsors.filter((s) => s.status === f).length})
+                {f === "all" ? scoped.length : scoped.filter((s) => s.status === f).length})
               </Button>
             ))}
           </div>
+          {state.tournaments.length > 1 && (
+            <div className="w-56 [&_label]:sr-only">
+              <Choice
+                label="Filtrar por torneo"
+                value={tournamentFilter}
+                onChange={(v) => {
+                  setTournamentFilter(v);
+                  setPicked([]);
+                }}
+                options={[{ value: "all", label: "Todos los torneos" }, ...state.tournaments.map((t) => ({ value: t.id, label: t.name }))]}
+              />
+            </div>
+          )}
           <div className="search-field">
             <Search size={15} />
             <Input

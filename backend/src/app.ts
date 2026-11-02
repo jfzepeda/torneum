@@ -29,7 +29,7 @@ import {
   resolveOrg,
   type Actor,
 } from "./auth.js";
-import { activeTournament } from "./workspace-access.js";
+import { activeTournament, requireTournament } from "./workspace-access.js";
 import { registerWorkspaces } from "./workspaces.js";
 import { getState } from "./state.js";
 import {
@@ -1170,6 +1170,19 @@ export async function buildApp() {
   return app;
 }
 const active = activeTournament;
+
+// Las acciones masivas de patrocinadores pueden venir de la vista "Todo el club" (sin torneo
+// seleccionado): el torneo se deduce de los propios patrocinadores y se valida el acceso a cada uno.
+async function sponsorTournamentIds(db: Db, a: Actor, ids: string[]) {
+  const rows = (await db.query(
+    "SELECT id,tournament_id FROM sponsors WHERE organization_id=$1 AND id=ANY($2::uuid[])",
+    [a.organization_id, ids],
+  )).rows;
+  ensure(rows.length === ids.length, "Patrocinadores no encontrados.", 404);
+  const tournamentIds = [...new Set(rows.map((r) => r.tournament_id as string))].sort();
+  for (const tid of tournamentIds) await requireTournament(db, a, tid, true);
+  return tournamentIds;
+}
 type Post = <T extends z.ZodType>(
   path: string,
   schema: T,
@@ -1398,15 +1411,16 @@ async function registerCommercial(post: Post, app: FastifyInstance) {
     z.object({ ids: z.array(id).min(1).max(200) }),
     "admin",
     async (b, a, db) => {
-      const t = await active(db, a!);
       const ids = [...new Set(b.ids)];
+      let confirmed = 0;
+      for (const tid of await sponsorTournamentIds(db, a!, ids)) {
+      const t = { id: tid };
       const rows = (
         await db.query(
           "SELECT s.id,s.name,s.status,l.priority FROM sponsors s LEFT JOIN sponsor_levels l ON l.id=s.level_id WHERE s.tournament_id=$1 AND s.id=ANY($2::uuid[]) ORDER BY s.id FOR UPDATE OF s",
           [t.id, ids],
         )
       ).rows;
-      ensure(rows.length === ids.length, "La selección contiene patrocinadores de otro torneo.", 400);
       const excluded = rows.filter((s) => s.status === "excluded");
       ensure(!excluded.length, `Hay patrocinadores excluidos en la selección: ${excluded.map((s) => s.name).join(", ")}.`, 400);
       const pending = rows.filter((s) => s.status !== "won");
@@ -1423,7 +1437,9 @@ async function registerCommercial(post: Post, app: FastifyInstance) {
         await db.query("UPDATE sponsors SET status='won' WHERE id=ANY($1::uuid[])", [pending.map((s) => s.id)]);
         await audit(db, a!.organization_id, a!.id, "sponsor.confirm", t.id, null, { ids: pending.map((s) => s.id) });
       }
-      return { ok: true, confirmed: pending.length };
+      confirmed += pending.length;
+      }
+      return { ok: true, confirmed };
     },
   );
   post(
@@ -1435,14 +1451,10 @@ async function registerCommercial(post: Post, app: FastifyInstance) {
     }),
     "admin",
     async (b, a, db) => {
-      const t = await active(db, a!);
       const ids = [...new Set(b.ids)];
-      const r = await db.query(
-        "UPDATE sponsors SET status=$3 WHERE tournament_id=$1 AND id=ANY($2::uuid[]) RETURNING id",
-        [t.id, ids, b.status],
-      );
-      ensure(r.rowCount === ids.length, "La selección contiene patrocinadores de otro torneo.", 400);
-      await audit(db, a!.organization_id, a!.id, "sponsor.status", t.id, null, b);
+      const tids = await sponsorTournamentIds(db, a!, ids);
+      const r = await db.query("UPDATE sponsors SET status=$2 WHERE id=ANY($1::uuid[]) RETURNING id", [ids, b.status]);
+      for (const tid of tids) await audit(db, a!.organization_id, a!.id, "sponsor.status", tid, null, b);
       return { ok: true, updated: r.rowCount };
     },
   );

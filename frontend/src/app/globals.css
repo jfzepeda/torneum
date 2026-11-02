@@ -2380,3 +2380,11 @@ time,
     transition-duration: 0.01ms !important;
   }
 }
+/* Landing: las reglas globales de h1/h2/p no tienen capa y ganan a Tailwind; aquí se devuelven a las utilidades. */
+.landing :is(h1, h2, h3, p) {
+  margin: revert-layer;
+  font-size: revert-layer;
+  font-weight: revert-layer;
+  line-height: revert-layer;
+  letter-spacing: revert-layer;
+}
