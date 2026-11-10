@@ -199,16 +199,17 @@ test("public registration captures per-player fields and displays a private revi
   const writes = await mockApi(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/google-e2e/copa-google/inscripcion");
-  await page.getByLabel("Nombre del equipo", { exact: true }).fill("Cometas");
+  await page.getByRole("radio", { name: /^Individual/ }).check();
+  await page.getByLabel("Nombre del equipo", { exact: false }).fill("Cometas");
   await page
-    .getByLabel("Nombre del participante 1", { exact: true })
+    .getByLabel("Nombre completo", { exact: true })
     .fill("Ana López");
   await page.getByLabel("Correo del participante 1").fill("ana@example.com");
   await page.getByLabel("Teléfono del participante 1").fill("5511111111");
   await page.getByLabel("Talla").selectOption("M");
   await page.getByLabel("Kit", { exact: true }).selectOption("true");
   await page.getByRole("checkbox").check();
-  await page.getByRole("button", { name: /Registrar/ }).click();
+  await page.getByRole("button", { name: /Enviar inscripción/ }).click();
   await expect(
     page.getByRole("heading", { name: "Solicitud recibida." }),
   ).toBeVisible();
@@ -320,6 +321,7 @@ test("organizer configures an extra field and uses the shared internal registrat
     .getByLabel("Nombre del participante 1", { exact: true })
     .fill("Ana López");
   await dialog.getByLabel("Correo del participante 1").fill("ana@example.com");
+  await dialog.getByLabel("Teléfono del participante 1").fill("5511111111");
   await dialog.getByLabel("Talla").selectOption("M");
   await dialog.getByRole("button", { name: "Registrar", exact: true }).click();
   await expect(dialog).not.toBeVisible();

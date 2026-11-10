@@ -1,6 +1,7 @@
 import Stripe from "stripe";
 import { pool, transaction, ensure, audit, type Db } from "./db.js";
 import nodemailer from "nodemailer";
+import type { PaymentMethod, PaymentSettings } from "./registration-payment-settings.js";
 
 export const stripeClient = () => {
   ensure(process.env.STRIPE_SECRET_KEY, "Stripe no está configurado.", 503);
@@ -11,22 +12,25 @@ export const stripeClient = () => {
 };
 const front = () => process.env.FRONTEND_URL || "http://127.0.0.1:3000";
 
-export async function registerPayment(db: Db, category: any, teamId: string) {
+export async function registerPayment(db: Db, category: any, teamId: string, method: PaymentMethod = category.payment_mode, settings?: PaymentSettings) {
   const free = category.payment_mode === "free";
   const r = (
     await db.query(
       `INSERT INTO tournament_registrations
-    (organization_id,tournament_id,category_id,team_id,status,payment_mode,amount_cents,expires_at,confirmed_at)
-    VALUES($1,$2,$3,$4,$5,$6,$7,CASE WHEN $8 THEN NULL ELSE now()+interval '30 minutes' END,CASE WHEN $8 THEN now() ELSE NULL END) RETURNING *`,
+    (organization_id,tournament_id,category_id,team_id,status,payment_mode,amount_cents,expires_at,confirmed_at,payment_method,payment_details)
+    VALUES($1,$2,$3,$4,$5,$6,$7,CASE WHEN $8 THEN NULL ELSE now()+($11 * interval '1 minute') END,CASE WHEN $8 THEN now() ELSE NULL END,$9,$10) RETURNING *`,
       [
         category.organization_id,
         category.tournament_id,
         category.id,
         teamId,
         free ? "CONFIRMED" : "PENDING_PAYMENT",
-        category.payment_mode,
+        method === "cash" || method === "transfer" ? "external" : method,
         category.price_cents,
         free,
+        method,
+        JSON.stringify(settings || {}),
+        method === "cash" || method === "transfer" ? (settings?.manual_payment_hours || 48) * 60 : 30,
       ],
     )
   ).rows[0];

@@ -13,6 +13,7 @@ export type ExtraField = {
   options: string[];
 };
 export type RegistrationSchema = {
+  layout?: "sections" | "steps";
   fields: ExtraField[];
   require_email?: boolean;
   email_mode: "team" | "participant";
@@ -127,27 +128,25 @@ export function RegistrationFields({
   categories,
   initial,
   onCategoryChange,
+  selectedCategory,
+  playersOnly = false,
 }: {
   schema?: RegistrationSchema;
   categories: Category[];
   initial?: RegistrationData;
   onCategoryChange?: (id: string) => void;
+  selectedCategory?: string;
+  playersOnly?: boolean;
 }) {
   const [category, setCategory] = useState(
     initial?.category_id || categories[0]?.id || "",
   );
   const [captain, setCaptain] = useState(String(initial?.captain || 0));
   const count =
-    categories.find((c) => c.id === category)?.participant_count || 2;
+    categories.find((c) => c.id === (selectedCategory || category))?.participant_count || 2;
   return (
     <FieldGroup>
-      <TextField
-        name="name"
-        label="Nombre del equipo"
-        placeholder="Ej. Los Smashers"
-        defaultValue={initial?.name}
-      />
-      <Choice
+      {!playersOnly && <Choice
         name="category_id"
         label="Categoría"
         value={category}
@@ -157,23 +156,24 @@ export function RegistrationFields({
           onCategoryChange?.(v);
         }}
         options={categories.map((c) => ({ value: c.id, label: c.name }))}
-      />
+      />}
+      <div className={playersOnly ? "registration-players" : "space-y-5"}>
       {Array.from({ length: count }, (_, i) => (
         <fieldset key={i} className="rounded-md border p-4">
           <legend className="px-2 text-sm font-medium">
-            Participante {i + 1}{i === Number(captain) ? " · responsable" : ""}
+            {playersOnly ? "Jugador" : "Participante"} {i + 1}{!playersOnly && i === Number(captain) ? " · responsable" : ""}
           </legend>
           <FieldGroup>
             <TextField
               name={`players.${i}.name`}
-              label={`Nombre del participante ${i + 1}`}
+              label={playersOnly ? "Nombre completo" : `Nombre del participante ${i + 1}`}
               placeholder="Nombre y apellido"
               defaultValue={initial?.players[i]?.name}
             />
             {schema.email_mode === "participant" && (
               <TextField
                 name={`players.${i}.email`}
-                label={`Correo del participante ${i + 1} (opcional)}`}
+                label={`Correo del participante ${i + 1}`}
                 type="email"
                 required={schema.require_email ?? false}
                 placeholder="correo@ejemplo.com"
@@ -203,6 +203,14 @@ export function RegistrationFields({
           </FieldGroup>
         </fieldset>
       ))}
+      </div>
+      <TextField
+        name="name"
+        label="Nombre del equipo"
+        required={!playersOnly}
+        placeholder="Ej. Los Smashers"
+        defaultValue={initial?.name}
+      />
       <Choice
         name="captain"
         label="Responsable de la inscripción"
@@ -216,7 +224,7 @@ export function RegistrationFields({
       {schema.email_mode === "team" && (
         <TextField
           name="email"
-          label={`Correo de contacto del equipo${schema.require_email ? "" : " (opcional)"}`}
+          label="Correo de contacto del equipo"
           type="email"
                 required={schema.require_email ?? false}
           placeholder="correo@ejemplo.com"
@@ -274,7 +282,7 @@ export function registrationFromForm(
     return result;
   }
   return {
-    name: string("name"),
+    name: string("name") || Array.from({ length: count }, (_, i) => string(`players.${i}.name`)).join(" / ").slice(0, 150),
     category_id: category,
     captain: Number(string("captain") || 0),
     email: string("email"),

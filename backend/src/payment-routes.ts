@@ -2,6 +2,8 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { getActor, requirePermission } from "./auth.js";
 import { pool, transaction, ensure, audit } from "./db.js";
+import { paymentSettingsSchema } from "./registration-payment-settings.js";
+import { requireTournament } from "./workspace-access.js";
 import {
   stripeClient,
   createCheckout,
@@ -11,6 +13,18 @@ import {
 const front = () => process.env.FRONTEND_URL || "http://127.0.0.1:3000";
 const param = z.object({ id: z.uuid() });
 export async function registerPaymentRoutes(app: FastifyInstance) {
+  app.post("/v1/tournaments/:id/payment-settings", async (req) => {
+    const actor = requirePermission(await getActor(req), "settings");
+    const { id } = param.parse(req.params);
+    const settings = paymentSettingsSchema.parse(req.body);
+    await transaction(async (db) => {
+      const tournament = await requireTournament(db, actor, id, true);
+      await db.query("SELECT id FROM tournaments WHERE id=$1 FOR UPDATE", [id]);
+      await db.query("UPDATE tournaments SET payment_settings=$2 WHERE id=$1 AND organization_id=$3", [id, JSON.stringify(settings), actor.organization_id]);
+      await audit(db, actor.organization_id, actor.id, "tournament.payment-settings", id, tournament.payment_settings, settings);
+    });
+    return { ok: true };
+  });
   app.get("/v1/stripe/status", async (req) => {
     const a = requirePermission(await getActor(req), "settings");
     const saved = (
@@ -150,7 +164,7 @@ export async function registerPaymentRoutes(app: FastifyInstance) {
     const b = z
       .object({
         price_cents: z.number().int().min(0).max(99999999),
-        payment_mode: z.enum(["free", "stripe", "external"]),
+        payment_mode: z.enum(["free", "stripe", "external", "choice"]),
         participant_count: z.number().int().min(1).max(100),
         registration_starts_at: z.iso.datetime().nullable(),
         registration_ends_at: z.iso.datetime().nullable(),

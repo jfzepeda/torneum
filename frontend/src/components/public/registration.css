@@ -1,0 +1,158 @@
+@font-face {
+  font-family: "Registration Display";
+  src: url("/fonts/registration-montserrat.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Registration Body";
+  src: url("/fonts/registration-dm-sans.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+}
+.public-shell:has(.registration-enrollment) {
+  --background: #0a1826;
+  --foreground: #f7f9fc;
+  --card: #14263b;
+  --card-foreground: #f7f9fc;
+  --primary: #ccde00;
+  --primary-foreground: #0a1826;
+  --muted-foreground: #adbccc;
+  --border: #34465a;
+  --input: #34465a;
+  --secondary: #14263b;
+  --secondary-foreground: #f7f9fc;
+  --ring: #ccde00;
+  color: var(--foreground);
+  background: var(--background);
+  font-family: "Registration Body", sans-serif;
+  min-height: 100vh;
+}
+.public-shell:has(.registration-enrollment) .public-nav,
+.public-shell:has(.registration-enrollment) .public-footer { max-width: 1120px; margin-inline: auto; border-color: var(--border); }
+.public-shell:has(.registration-enrollment) .public-nav a,
+.public-shell:has(.registration-enrollment) .public-footer a { color: var(--foreground); }
+.registration-page.registration-enrollment { max-width: 920px; padding: 56px 32px 96px; }
+.registration-enrollment .back-link { font-size: 13px; color: var(--muted-foreground); margin-bottom: 40px; }
+.registration-intro { margin-bottom: 28px; }
+.registration-intro h1 { font-family: "Registration Display", sans-serif; font-size: 64px; font-weight: 900; text-transform: uppercase; line-height: 1.05; letter-spacing: -0.03em; margin: 0 0 24px; text-wrap: balance; overflow-wrap: anywhere; }
+.registration-intro h1 span { display: block; font-weight: 400; color: var(--primary); font-size: 72px; letter-spacing: -0.04em; margin-top: 4px; }
+.registration-intro > p { color: var(--muted-foreground); font-size: 16px; line-height: 1.6; max-width: 65ch; }
+.registration-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.registration-facts > div { padding: 24px; border: 1px solid var(--border); background: var(--card); }
+.registration-facts strong { display: block; font-family: "Registration Display", sans-serif; font-size: 27px; font-weight: 800; line-height: 1.25; overflow-wrap: anywhere; }
+.registration-facts span { display: block; margin-top: 10px; font-size: 13px; color: var(--muted-foreground); text-transform: uppercase; letter-spacing: 0.12em; }
+.registration-dates { color: var(--muted-foreground); font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; margin-top: 20px; }
+.registration-checkout { margin-top: 36px; border-top: 1px solid var(--border); padding-top: 36px; }
+.registration-section { border: 0; margin: 0 0 40px; padding: 0; min-width: 0; }
+.registration-section[hidden] { display: none; }
+.registration-section > legend { width: 100%; display: flex; align-items: center; gap: 14px; font-family: "Registration Display", sans-serif; font-size: 17px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 22px; padding: 0; }
+.registration-section > legend > span { flex: 0 0 32px; height: 32px; display: grid; place-items: center; background: var(--primary); color: var(--primary-foreground); font-size: 18px; letter-spacing: 0; }
+.registration-section > p { margin-bottom: 20px; color: var(--muted-foreground); }
+.registration-categories { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.registration-option { position: relative; display: flex; align-items: center; justify-content: center; min-height: 108px; border: 1px solid var(--border); background: var(--card); padding: 22px 18px; text-align: center; cursor: pointer; transition: border-color 160ms ease-out, background-color 160ms ease-out; }
+.registration-option input { position: absolute; opacity: 0; width: 20px; height: 20px; right: 10px; top: 10px; }
+.registration-option > span { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; }
+.registration-option strong { font-family: "Registration Display", sans-serif; font-size: 20px; font-weight: 800; line-height: 1.25; overflow-wrap: anywhere; }
+.registration-option span span { color: var(--muted-foreground); font-size: 14px; }
+.registration-option small { font-size: 12px; color: var(--muted-foreground); line-height: 1.5; }
+.registration-option:has(input:checked) { border-color: var(--primary); background: #233337; }
+.registration-option:has(input:checked)::after { content: ""; position: absolute; width: 8px; height: 8px; top: 11px; right: 11px; background: var(--primary); }
+.registration-option:hover:not([data-disabled="true"]) { border-color: var(--primary); }
+.registration-option:has(input:focus-visible) { outline: 2px solid var(--primary); outline-offset: 4px; }
+.registration-option[data-disabled="true"] { opacity: 0.55; cursor: not-allowed; }
+.registration-players { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.registration-players > fieldset { min-width: 0; border: 1px solid var(--border); border-radius: 0; background: var(--card); padding: 24px; }
+.registration-players > fieldset > legend { float: left; width: 100%; margin: 0 0 20px; padding: 0; color: var(--primary); font-family: "Registration Display", sans-serif; font-size: 15px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; }
+.registration-players > fieldset > [data-slot="field-group"] { clear: both; }
+.registration-enrollment [data-slot="field-label"] { font-size: 15px; line-height: 1.5; color: var(--muted-foreground); }
+.registration-enrollment [data-slot="field-group"] { gap: 22px; }
+.registration-enrollment [data-slot="input"],
+.registration-enrollment [data-slot="select-trigger"],
+.registration-enrollment select { width: 100%; border-radius: 0; min-height: 52px; background: var(--background); border: 1px solid var(--border); box-shadow: none; color: var(--foreground); font-family: "Registration Body", sans-serif; font-size: 17px; padding: 12px 14px; caret-color: var(--primary); }
+.registration-enrollment input::placeholder { color: var(--muted-foreground); opacity: 1; }
+.registration-enrollment input:focus-visible,
+.registration-enrollment select:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+.registration-enrollment .choice-field { width: 100%; }
+.registration-help { color: var(--muted-foreground); font-size: 14px; line-height: 1.65; margin-top: 16px; }
+.registration-total { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 22px; }
+.registration-total > span { font-size: 15px; color: var(--muted-foreground); }
+.registration-total small { display: block; margin-top: 4px; }
+.registration-total strong { font-family: "Registration Display", sans-serif; font-weight: 800; font-size: 26px; }
+.registration-payment-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 24px; }
+.registration-payment-options .registration-option strong { font-size: 18px; }
+.registration-policy { margin: 24px 0; font-size: 14px; line-height: 1.65; }
+.registration-policy h3 { font-weight: 700; margin-bottom: 8px; }
+.registration-enrollment .consent { font-size: 13px; line-height: 1.7; margin-top: 24px; color: var(--muted-foreground); }
+.registration-enrollment input[type="checkbox"] { width: 18px; height: 18px; flex-shrink: 0; accent-color: var(--primary); }
+.registration-actions { display: flex; gap: 12px; margin-top: 24px; }
+.registration-actions > button { flex: 1; min-height: 64px; border-radius: 0; font-family: "Registration Display", sans-serif; font-size: 16px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; white-space: normal; }
+.registration-bank-section { border-top: 1px solid var(--border); padding-top: 32px; margin-top: 40px; }
+.registration-bank-section > h2 { font-family: "Registration Display", sans-serif; font-size: 17px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.15em; margin-bottom: 24px; }
+.registration-bank-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.registration-payment-details { overflow-wrap: anywhere; font-size: 15px; line-height: 1.7; }
+.registration-bank-grid > .registration-payment-details { border: 1px solid var(--border); padding: 26px; background: var(--card); }
+.registration-payment-details h3 { font-family: "Registration Display", sans-serif; font-size: 22px; font-weight: 800; margin-bottom: 20px; }
+.registration-payment-details dl { display: grid; gap: 16px; }
+.registration-payment-details dt { color: var(--muted-foreground); font-size: 14px; }
+.registration-payment-details dd { font-size: 16px; font-weight: 700; }
+.registration-payment-details dd button { display: flex; margin-top: 10px; min-height: 40px; border-radius: 0; color: inherit; background: transparent; border-color: var(--border); }
+.registration-payment-details p { margin-top: 20px; color: var(--muted-foreground); }
+.bank-number { font-variant-numeric: tabular-nums; user-select: all; overflow-wrap: anywhere; }
+.registration-progress { display: flex; gap: 16px; margin-bottom: 36px; }
+.registration-progress button { display: flex; align-items: center; gap: 8px; color: var(--muted-foreground); min-height: 44px; font-size: 14px; }
+.registration-progress button[aria-current] { color: var(--primary); }
+.registration-progress button:disabled { opacity: 0.5; }
+.registration-progress span { display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid currentColor; }
+.registration-empty { border-top: 1px solid var(--border); padding-block: 40px; }
+.registration-empty h2 { font-size: 24px; font-weight: 700; margin-bottom: 16px; }
+.registration-empty p { color: var(--muted-foreground); }
+@media (max-width: 640px) {
+  .registration-page.registration-enrollment { padding: 28px 20px 64px; }
+  .registration-enrollment .back-link { margin-bottom: 28px; }
+  .registration-intro h1 { font-size: 40px; }
+  .registration-intro h1 span { font-size: 52px; }
+  .registration-intro > p { font-size: 14px; }
+  .registration-facts { gap: 10px; }
+  .registration-facts > div { padding: 18px 14px; }
+  .registration-facts strong { font-size: 19px; }
+  .registration-facts span { font-size: 11px; letter-spacing: 0.06em; }
+  .registration-section > legend { font-size: 14px; letter-spacing: 0.08em; gap: 10px; }
+  .registration-categories { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .registration-option { padding: 20px 12px; }
+  .registration-option strong { font-size: 18px; }
+  .registration-players, .registration-bank-grid { grid-template-columns: 1fr; }
+  .registration-players > fieldset { padding: 22px; }
+  .registration-payment-options { grid-template-columns: 1fr; }
+  .public-shell:has(.registration-enrollment) .public-nav { flex-wrap: wrap; gap: 16px; padding: 20px; }
+  .public-shell:has(.registration-enrollment) .public-nav nav { width: 100%; justify-content: space-between; gap: 14px; }
+  .public-shell:has(.registration-enrollment) .public-nav nav a { font-size: 12px; min-height: 36px; display: flex; align-items: center; }
+  .registration-progress { gap: 12px; justify-content: space-between; }
+  .registration-progress button { font-size: 12px; gap: 5px; }
+  .registration-actions > button { font-size: 14px; }
+  .registration-total strong { font-size: 22px; }
+}
+
+/* Keep the registration flow readable on phones and small tablets. */
+@media (max-width: 768px) {
+  .registration-page.registration-enrollment { width: 100%; min-width: 0; padding-inline: 20px; }
+  .registration-layout, .registration-checkout, .registration-section, .registration-facts,
+  .registration-categories, .registration-players, .registration-bank-grid { min-width: 0; max-width: 100%; }
+  .registration-players, .registration-bank-grid { grid-template-columns: minmax(0, 1fr); }
+  .registration-payment-options { grid-template-columns: minmax(0, 1fr); }
+  .public-shell:has(.registration-enrollment) .public-footer { margin-inline: 20px; flex-wrap: wrap; }
+}
+@media (max-width: 400px) {
+  .registration-intro h1 { font-size: 34px; }
+  .registration-intro h1 span { font-size: 46px; }
+  .registration-facts, .registration-categories { grid-template-columns: minmax(0, 1fr); }
+  .registration-option { min-height: 88px; }
+  .registration-actions { flex-direction: column-reverse; }
+  .registration-actions > button { width: 100%; flex: none; }
+  .registration-progress { gap: 6px; }
+  .registration-progress button { min-width: 0; font-size: 12px; }
+  .registration-progress span { flex: 0 0 28px; }
+  .public-shell:has(.registration-enrollment) .public-nav nav { flex-wrap: wrap; }
+}

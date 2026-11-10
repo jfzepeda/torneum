@@ -7,7 +7,10 @@ import { Button } from "./ui/button";
 import { ChevronDown, Search } from "lucide-react";
 import { Input } from "./ui/input";
 import { TextField, DateTimeField, Submit, Choice, formValue } from "./common";
+import { PaymentInstructions, paymentLabels, type PaymentMethod, type TournamentPayments } from "./registration-payment-settings";
 export type RegistrationPayment = {
+  payment_method?: PaymentMethod;
+  payment_details?: TournamentPayments;
   id: string;
   status: string;
   payment_mode: string;
@@ -52,7 +55,7 @@ export function ParticipantPayment({
           ? `${money(registration.amount_cents)} MXN`
           : "$0.00 MXN"}{" "}
         ·{" "}
-        {registration.payment_mode === "free"
+        {registration.payment_method ? paymentLabels[registration.payment_method] : registration.payment_mode === "free"
           ? "Sin costo"
           : registration.payment_mode === "external"
             ? "Pago externo con el organizador"
@@ -98,6 +101,8 @@ export function ParticipantPayment({
             >
               {busy ? "Redirigiendo a Stripe…" : "Pagar inscripción"}
             </Button>
+          ) : registration.payment_method === "cash" || registration.payment_method === "transfer" ? (
+            <PaymentInstructions method={registration.payment_method} settings={registration.payment_details || {}} />
           ) : (
             <p>
               Comunícate con el organizador para registrar tu pago antes de que
@@ -173,7 +178,8 @@ function CategoryPayment({
         options={[
           { value: "free", label: "Gratuita" },
           { value: "stripe", label: "Tarjeta · Stripe" },
-          { value: "external", label: "Pago externo autorizado" },
+          { value: "external", label: "Transferencia / efectivo" },
+          { value: "choice", label: "Métodos del torneo (transferencia, efectivo y/o Stripe)" },
         ]}
       />
       {mode !== "free" && (
@@ -187,6 +193,7 @@ function CategoryPayment({
           defaultValue={String((category.price_cents || 0) / 100)}
         />
       )}
+      {mode === "choice" && <p className="text-sm text-muted-foreground">Configura las opciones disponibles y los datos bancarios en Formulario de inscripción → Medios y datos de pago.</p>}
       <TextField
         label="Participantes por inscripción (1 = individual)"
         name="participants"
@@ -409,6 +416,7 @@ export function PaymentSettings({ state, scope = "tournament" }: { state: State;
             )}
             <p>
               {money(r.amount_cents)} · {statuses[r.status] || r.status}
+              {r.payment_method && ` · ${paymentLabels[r.payment_method]}`}
               {r.payment_status &&
                 ` · ${statuses[r.payment_status] || r.payment_status}`}
             </p>

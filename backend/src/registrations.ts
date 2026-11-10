@@ -2,6 +2,7 @@ import { z } from "zod";
 import { transaction, ensure, audit, type Db } from "./db.js";
 import { newToken, hashToken } from "./auth.js";
 import { registerPayment } from "./payments.js";
+import { paymentSettingsSchema, resolvePaymentMethod } from "./registration-payment-settings.js";
 import { sendVerification } from "./integrations.js";
 import {
   registrationSchema,
@@ -137,16 +138,11 @@ export async function createRegistration(
         new Date(c.registration_ends_at).getTime() > Date.now()),
     "Inscripciones fuera de plazo.",
   );
-  if (c.payment_mode === "stripe")
-    ensure(
-      (
-        await db.query(
-          "SELECT 1 FROM tenant_payment_accounts WHERE organization_id=$1 AND connected AND charges_enabled",
-          [org],
-        )
-      ).rowCount,
-      "El organizador todavía no está habilitado para cobrar.",
-    );
+  const settings = paymentSettingsSchema.parse(t.payment_settings || {});
+  const stripeReady = !!process.env.STRIPE_SECRET_KEY && !!(await db.query(
+    "SELECT 1 FROM tenant_payment_accounts WHERE organization_id=$1 AND connected AND charges_enabled AND stripe_account_id IS NOT NULL", [org],
+  )).rowCount;
+  const paymentMethod = resolvePaymentMethod(c.payment_mode, settings, stripeReady, b.payment_method);
   const count = (
     await db.query(
       "SELECT count(*) FROM teams WHERE category_id=$1 AND status NOT IN ('rejected','withdrawn')",
@@ -188,7 +184,7 @@ export async function createRegistration(
       ],
     )
   ).rows[0];
-  const registration = await registerPayment(db, c, team.id);
+  const registration = await registerPayment(db, c, team.id, paymentMethod, settings);
   if (skipVerification)
     await db.query("UPDATE teams SET verified_at=now(),status=$2 WHERE id=$1", [team.id, t.auto_approve && registration.status === "CONFIRMED" ? "approved" : "pending"]);
   const token = newToken();

@@ -85,6 +85,7 @@ import { CalendarView } from "./calendar";
 import { Sponsors } from "./sponsors";
 import { CreateTournament, ReuseResources } from "./workspaces";
 import { Administration } from "./administration";
+const RegistrationConfiguration = dynamic(() => import("./registration-configuration").then(m => m.RegistrationConfiguration));
 const GoogleRegistrations = dynamic(() => import("./google-registrations").then(m => m.GoogleRegistrations));
 const ChatPanel = dynamic(
   () => import("./chat-panel").then((m) => m.ChatPanel),
@@ -102,6 +103,7 @@ const nav = [
       ["inicio", "Inicio", LayoutDashboard],
       ["inscripciones", "Inscripciones", Inbox],
       ["google", "Importar y revisar", Inbox],
+      ["formulario", "Formulario de inscripción", Settings],
       ["categorias", "Categorías", Layers],
       ["equipos", "Equipos y jugadores", Users],
       ["grupos", "Grupos y sorteo", Shuffle],
@@ -434,6 +436,8 @@ export function Dashboard({ slug }: { slug: string }) {
               "solicitudes",
             ].includes(view) ? (
             <Operations {...props} view={view} initialFilter={viewStatus || undefined} />
+          ) : view === "formulario" ? (
+            <RegistrationConfiguration {...props} />
           ) : view === "google" ? (
             <GoogleRegistrations {...props} />
           ) : view === "calendario" ? (

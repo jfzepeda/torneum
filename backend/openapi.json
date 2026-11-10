@@ -205,6 +205,16 @@
               "schema": {
                 "type": "object",
                 "properties": {
+                  "payment_method": {
+                    "type": "string",
+                    "enum": [
+                      "free",
+                      "stripe",
+                      "external",
+                      "transfer",
+                      "cash"
+                    ]
+                  },
                   "category_id": {
                     "type": "string",
                     "format": "uuid",
@@ -3346,6 +3356,14 @@
                   "schema": {
                     "type": "object",
                     "properties": {
+                      "layout": {
+                        "default": "sections",
+                        "type": "string",
+                        "enum": [
+                          "sections",
+                          "steps"
+                        ]
+                      },
                       "require_email": {
                         "default": false,
                         "type": "boolean"
@@ -3910,6 +3928,16 @@
                   "data": {
                     "type": "object",
                     "properties": {
+                      "payment_method": {
+                        "type": "string",
+                        "enum": [
+                          "free",
+                          "stripe",
+                          "external",
+                          "transfer",
+                          "cash"
+                        ]
+                      },
                       "category_id": {
                         "type": "string",
                         "format": "uuid",
@@ -4091,6 +4119,16 @@
                   "data": {
                     "type": "object",
                     "properties": {
+                      "payment_method": {
+                        "type": "string",
+                        "enum": [
+                          "free",
+                          "stripe",
+                          "external",
+                          "transfer",
+                          "cash"
+                        ]
+                      },
                       "category_id": {
                         "type": "string",
                         "format": "uuid",
@@ -4807,6 +4845,25 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/v1/tournaments/{id}/payment-settings": {
+      "post": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
           }
         }
       }

@@ -24,6 +24,7 @@ export type Category = {
   id: string;
   name: string;
   capacity: number;
+  registration_count?: number;
   group_size: number;
   qualifiers: number;
   duration_minutes: number;
@@ -125,6 +126,7 @@ export type Standing = {
   tie: boolean;
 };
 export type State = {
+  stripe_ready?: boolean;
   tournaments: Tournament[];
   management?: Management | null;
   organization: {
@@ -148,6 +150,7 @@ export type State = {
     auto_approve: boolean;
     registration_open: boolean;
     registration_schema?: RegistrationSchema;
+    payment_settings?: import("@/components/registration-payment-settings").TournamentPayments;
     highlights?: Highlight[];
     status: string;
   } | null;

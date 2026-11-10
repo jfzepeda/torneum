@@ -17,6 +17,7 @@ export const fieldSchema = z.object({
 });
 export const registrationSchema = z
   .object({
+    layout: z.enum(["sections", "steps"]).default("sections"),
     require_email: z.boolean().default(false),
     fields: z.array(fieldSchema).max(50).default([]),
     email_mode: z.enum(["team", "participant"]).default("team"),
@@ -54,6 +55,7 @@ export function nationalPhone(value: string): string | null {
   return m ? m[1] : null;
 }
 export const registrationInput = z.object({
+  payment_method: z.enum(["free", "stripe", "external", "transfer", "cash"]).optional(),
   category_id: z.string().uuid(),
   name: z.string().trim().min(1).max(150),
   players: z

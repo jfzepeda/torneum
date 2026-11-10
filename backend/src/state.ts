@@ -8,6 +8,9 @@ export async function getState(db: Db, who: Actor | string, archiveId?:string, t
   const actor = typeof who === "string" ? undefined : who;
   const orgId = typeof who === "string" ? who : who.organization_id;
   const organization = (await db.query("SELECT id,name,slug,brand_color,brand_bg,brand_card,brand_platform FROM organizations WHERE id=$1", [orgId])).rows[0];
+  const stripeReady = !!process.env.STRIPE_SECRET_KEY && !!(await db.query(
+    "SELECT 1 FROM tenant_payment_accounts WHERE organization_id=$1 AND connected AND charges_enabled AND stripe_account_id IS NOT NULL", [orgId],
+  )).rowCount;
   const internal = actor && actor.role !== "participant";
   const management = internal ? await managementState(db, actor) : null;
   const available = management?.tournaments || await accessibleTournaments(db, orgId);
@@ -47,7 +50,7 @@ export async function getState(db: Db, who: Actor | string, archiveId?:string, t
     );
   const commercial = actor?.role === "admin";
   const results = await Promise.all([
-    db.query("SELECT * FROM categories WHERE tournament_id=$1 ORDER BY name", [
+    db.query("SELECT c.*,(SELECT count(*)::int FROM teams t WHERE t.category_id=c.id AND t.status NOT IN ('rejected','withdrawn')) registration_count FROM categories c WHERE c.tournament_id=$1 ORDER BY c.name", [
       t.id,
     ]),
     db.query(
@@ -140,6 +143,7 @@ export async function getState(db: Db, who: Actor | string, archiveId?:string, t
     organization,
     ...workspace,
     tournament: t,
+    stripe_ready: stripeReady,
     categories: categories.rows,
     teams: teams.rows,
     matches: matches.rows,

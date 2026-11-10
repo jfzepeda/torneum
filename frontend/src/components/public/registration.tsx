@@ -1,18 +1,14 @@
 "use client";
+import "./registration.css";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { FieldGroup } from "@/components/ui/field";
+
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { Submit } from "../common";
-import {
-  RegistrationFields,
-  registrationFromForm,
-  defaultSchema,
-} from "../registration-fields";
-import { money } from "../payments";
+import { RegistrationCheckout } from "./registration-checkout";
+import { PaymentInstructions, type PaymentMethod } from "../registration-payment-settings";
 import { get, mutate, tournamentSlugs } from "@/lib/api";
 import { PublicShell, usePublic } from "./shell";
 // Marca local para disuadir inscripciones repetidas desde el mismo navegador (no es una garantía).
@@ -34,33 +30,25 @@ export function Registration({ slug, torneo }: { slug: string; torneo: string })
   useEffect(() => {
     if (tournamentId) setAlready(hasRegistered(tournamentId));
   }, [tournamentId]);
-  const [category, setCategory] = useState(""),
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("free"),
     [reviewPending, setReviewPending] = useState(false),
     [accessLink, setAccessLink] = useState(""),
-    [busy, setBusy] = useState(false),
-    [message, setMessage] = useState(""),
     [done, setDone] = useState(false),
     [devLink, setDevLink] = useState("");
-  const selected = state?.categories.find(
-    (c) =>
-      c.id ===
-      (category || state.categories.find((c) => !c.draw_published)?.id),
-  );
+  const title = state?.tournament?.name || "Inscripción al torneo";
+  const year = title.match(/\b(20\d{2})$/)?.[1];
   return (
     <PublicShell slug={slug} orgName={state?.organization?.name} torneo={torneo}>
-      <main className="registration-page">
+      <main className="registration-page registration-enrollment">
         <Link className="back-link" href={base}>
           <ArrowLeft size={15} />
           Volver al torneo
         </Link>
-        <div className="eyebrow">EL PRIMER PASO HACIA LA CANCHA</div>
-        <h1>Registra tu participación.</h1>
-        <p>
-          Un solo integrante (el capitán) llena el formulario por la pareja.
-          El teléfono es obligatorio. {state?.tournament?.registration_schema?.require_email
-            ? "El correo también es obligatorio: recibirás un enlace para verificar la inscripción."
-            : "El correo es opcional y puedes continuar sin verificación."} Toma unos 2 minutos.
-        </p>
+        <header className="registration-intro">
+          <h1>{year ? title.slice(0, -4).trim() : title}{year && <span>{year}</span>}</h1>
+          <p>Elige tu categoría. Registra a tu equipo. Nos vemos en la cancha.</p>
+        </header>
+        {!state && !error && <p role="status">Cargando las inscripciones…</p>}
         {error && (
           <Alert variant="destructive">
             <AlertDescription>{error}</AlertDescription>
@@ -107,6 +95,7 @@ export function Registration({ slug, torneo }: { slug: string; torneo: string })
               Volver al torneo
             </Button>
             {accessLink && <Button nativeButton={false} render={<a href={accessLink} />}>Gestionar inscripción</Button>}
+            {!reviewPending && (paymentMethod === "transfer" || paymentMethod === "cash") && <PaymentInstructions method={paymentMethod} settings={state?.tournament?.payment_settings || {}} />}
             {devLink && (
               <Alert>
                 <AlertTitle>Entorno local de pruebas</AlertTitle>
@@ -124,83 +113,19 @@ export function Registration({ slug, torneo }: { slug: string; torneo: string })
               </Alert>
             )}
           </section>
-        ) : (
-          <form
-            className="panel registration-form"
-            onSubmit={async (e) => {
-              e.preventDefault();
-              setBusy(true);
-              setMessage("");
-              const d = new FormData(e.currentTarget);
-              try {
-                const r = await mutate("/v1/registrations", {
-                  slug,
-                  ...registrationFromForm(
-                    d,
-                    state?.tournament?.registration_schema || defaultSchema,
-                    state?.categories || [],
-                  ),
-                });
-                setAccessLink((r.access_link as string) || "");
-                setReviewPending(Boolean(r.review_pending));
-                setDevLink((r.development_link as string) || "");
-                setDone(true);
-                if (tournamentId && !staff)
-                  document.cookie = `${registeredCookie(tournamentId)}=1; max-age=${60 * 60 * 24 * 365}; path=/; SameSite=Lax`;
-                toast.success("Inscripción enviada");
-                window.scrollTo({ top: 0, behavior: "smooth" });
-              } catch (e) {
-                setMessage(
-                  `${(e as Error).message} Revisa los datos e inténtalo de nuevo.`,
-                );
-              } finally {
-                setBusy(false);
-              }
-            }}
-          >
-            <FieldGroup>
-              {state && (
-                <RegistrationFields
-                  schema={
-                    state?.tournament?.registration_schema || defaultSchema
-                  }
-                  categories={state.categories.filter((c) => !c.draw_published)}
-                  onCategoryChange={setCategory}
-                />
-              )}
-              <p className="text-sm text-muted-foreground">
-                Precio de inscripción:{" "}
-                <strong>
-                  {selected?.price_cents
-                    ? `${money(selected.price_cents / Math.max(selected.participant_count || 1, 1))} MXN por jugador`
-                    : "Gratis"}
-                </strong>
-                {selected?.payment_policy
-                  ? ` · ${selected.payment_policy}`
-                  : ""}
-              </p>
-              <Alert>
-                <AlertDescription>
-                  La inscripción incluye los datos de los participantes. El
-                  responsable debe contar con su autorización. La categoría está
-                  sujeta a revisión del organizador.
-                </AlertDescription>
-              </Alert>
-              <label className="consent">
-                <input type="checkbox" required />
-                Acepto las políticas del organizador y confirmo que los
-                participantes autorizan el registro y la publicación de sus
-                nombres y resultados.
-              </label>
-              {message && (
-                <Alert variant="destructive">
-                  <AlertDescription>{message}</AlertDescription>
-                </Alert>
-              )}
-              <Submit busy={busy} label="Registrar y verificar correo" />
-            </FieldGroup>
-          </form>
-        )}
+        ) : state?.tournament ? (
+          <RegistrationCheckout state={state} slug={slug} onComplete={(r, method) => {
+            setPaymentMethod(method);
+            setAccessLink((r.access_link as string) || "");
+            setReviewPending(Boolean(r.review_pending));
+            setDevLink((r.development_link as string) || "");
+            setDone(true);
+            if (tournamentId && !staff)
+              document.cookie = `${registeredCookie(tournamentId)}=1; max-age=${60 * 60 * 24 * 365}; path=/; SameSite=Lax`;
+            toast.success("Inscripción enviada");
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }} />
+        ) : null}
       </main>
     </PublicShell>
   );

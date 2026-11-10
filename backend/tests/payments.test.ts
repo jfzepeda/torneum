@@ -678,3 +678,33 @@ test(
     await reconcilePayments(fake);
   },
 );
+
+test("registration payment settings are tenant scoped and manual choices persist without confirming payment", { skip: !enabled }, async () => {
+  const fixtureData = await fixture();
+  const settings = {transfer_enabled:true, cash_enabled:true, stripe_enabled:true, bank:"Banco de prueba", account_holder:"Organizador", clabe:"012345678901234567", account_number:"0123456789", transfer_instructions:"Envía el comprobante al club", cash_instructions:"Recepción del club", manual_payment_hours:72};
+  const url = `/v1/tournaments/${fixtureData.tournament}/payment-settings`;
+  assert.equal((await post(url, settings, B.cookie)).statusCode, 404);
+  assert.equal((await post(url, {...settings, clabe:"123"}, fixtureData.cookie)).statusCode, 400);
+  assert.equal((await post(url, settings, fixtureData.cookie)).statusCode, 200);
+  await q("UPDATE categories SET payment_mode='choice' WHERE id=$1", [fixtureData.category]);
+  for (const method of ["cash", "transfer", "stripe"]) {
+    const response = await post("/v1/registrations", {slug: fixtureData.slug, category_id: fixtureData.category, name: `Equipo ${method}`, players:[{name:randomUUID()}, {name:randomUUID()}], phone:"5512345678", payment_method:method});
+    assert.equal(response.statusCode, 200, response.body);
+    const row = (await q("SELECT * FROM tournament_registrations WHERE id=$1", [response.json().registration_id]))[0];
+    assert.equal(row.payment_method, method);
+    assert.equal(row.payment_mode, method === "stripe" ? "stripe" : "external");
+    assert.equal(row.status, "PENDING_PAYMENT");
+    assert.equal(row.amount_cents, 50000);
+    assert.equal(row.payment_details.clabe, settings.clabe);
+    if (method !== "stripe") assert.ok(new Date(row.expires_at).getTime() > Date.now() + 71 * 3600000);
+    if (method === "stripe") {
+      assert.equal((await createCheckout(row.id, fixtureData.org, fake)).url, "https://checkout.stripe.com/test");
+    } else {
+      assert.equal((await post(`/v1/registrations/${row.id}/external-payment`, {reference:"Recibo prueba"}, B.cookie)).statusCode, 404);
+      assert.equal((await post(`/v1/registrations/${row.id}/external-payment`, {reference:"Recibo prueba"}, fixtureData.cookie)).statusCode, 200);
+      assert.equal((await q("SELECT status FROM tournament_registrations WHERE id=$1",[row.id]))[0].status, "CONFIRMED");
+    }
+  }
+  const response = await post("/v1/registrations", {slug:fixtureData.slug, category_id:fixtureData.category, name:"Invalid", players:[{name:randomUUID()}, {name:randomUUID()}], phone:"5512345678", payment_method:"free"});
+  assert.equal(response.statusCode, 400);
+});
