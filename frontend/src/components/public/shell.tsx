@@ -1,6 +1,8 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import "./public.css";
 import { get, API, tournamentSlugs } from "@/lib/api";
 import { useBrand } from "@/lib/brand";
 import type { State } from "@/lib/types";
@@ -16,24 +18,47 @@ export function PublicShell({
   torneo?: string;
 }) {
   const base = torneo ? `/${slug}/${torneo}` : `/${slug}`;
+  const path = usePathname();
+  const links = [
+    [base, "El torneo"],
+    [`${base}/patrocinadores`, "Patrocinadores"],
+    [`${base}/mi-pareja`, "Mi inscripción"],
+  ];
+  const nav = links.map(([href, label]) => (
+    <Link key={href} href={href} aria-current={path === href ? "page" : undefined}>
+      {label}
+    </Link>
+  ));
   return (
     <div className="public-shell">
-      <header className="public-nav">
-        <Link href={base} className="brand">
-          <span className="brand-mark">t</span>
-          {orgName || "torneum"}.
-        </Link>
-        <nav>
-          <Link href={base}>El torneo</Link>
-          <Link href={`${base}/patrocinadores`}>Patrocinadores</Link>
-          <Link href={`${base}/mi-pareja`}>Mi inscripción</Link>
-        </nav>
+      <header className="pub-nav">
+        <div className="pub-wrap">
+          <Link href={base} className="pub-brand">
+            <span className="brand-mark">t</span>
+            <span>{orgName || "torneum"}</span>
+          </Link>
+          <nav className="pub-links" aria-label="Torneo">
+            {nav}
+          </nav>
+        </div>
       </header>
       {children}
-      <footer className="public-footer">
-        <strong>torneum.</strong>
-        <span>Cada partido cuenta.</span>
-        <Link href={`${base}/inscripcion`}>Participar en el torneo ↗</Link>
+      <footer className="pub-footer pub-dark">
+        <div className="pub-wrap">
+          <div>
+            <strong>{orgName || "torneum"}</strong>
+            <p>Cada partido cuenta.</p>
+          </div>
+          <nav aria-label="Pie de página">
+            {nav}
+            <Link className="pub-footer-cta" href={`${base}/inscripcion`}>
+              Inscribir mi pareja ↗
+            </Link>
+          </nav>
+          <small>
+            Torneo organizado con <Link href="/">torneum.</Link>
+          </small>
+        </div>
       </footer>
     </div>
   );

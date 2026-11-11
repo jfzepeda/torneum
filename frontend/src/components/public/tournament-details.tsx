@@ -5,7 +5,6 @@ import {
   CalendarDays,
   MapPin,
   Trophy,
-  CheckCircle2,
   Clock,
   Users,
   Gift,
@@ -33,155 +32,158 @@ export function TournamentDetails({
   base: string;
 }) {
   const t = state.tournament!;
-  const courts = state.courts.filter((c) => c.enabled);
   const teams = (id: string) =>
     state.teams.filter((team) => team.category_id === id).length;
-  const capacity = state.categories.reduce((n, c) => n + c.capacity, 0);
+  return (
+    <section className="pub-section" id="categorias">
+      <header className="pub-section-head">
+        <div>
+          <p className="pub-eyebrow">Categorías</p>
+          <h2>Elige dónde competir</h2>
+          <p>
+            {t.auto_approve
+              ? "Tu lugar queda confirmado al terminar la inscripción."
+              : "El organizador revisa cada inscripción antes de confirmar el lugar."}
+          </p>
+        </div>
+        <Button
+          size="lg"
+          disabled={!t.registration_open}
+          nativeButton={false}
+          render={<Link href={`${base}/inscripcion`} />}
+        >
+          {t.registration_open ? "Inscribir mi pareja" : "Inscripciones cerradas"}
+          <ArrowUpRight data-icon="inline-end" />
+        </Button>
+      </header>
+      <ul className="pub-categories">
+        {state.categories.map((c) => {
+          const n = teams(c.id);
+          return (
+            <li key={c.id} className="pub-card">
+              <div>
+                <strong>{c.name}</strong>
+                <b>
+                  {c.price_cents > 0 ? (
+                    <>
+                      {money(c.price_cents / Math.max(c.participant_count || 1, 1))}
+                      <small> / jugador</small>
+                    </>
+                  ) : (
+                    "Gratis"
+                  )}
+                </b>
+              </div>
+              <div
+                className="pub-meter"
+                role="img"
+                aria-label={`${n} de ${c.capacity} lugares ocupados`}
+                style={{ "--fill": `${Math.min(100, (n / Math.max(c.capacity, 1)) * 100)}%` } as React.CSSProperties}
+              >
+                <span />
+              </div>
+              <small>
+                {n} de {c.capacity} parejas ·{" "}
+                {c.capacity > n ? `${c.capacity - n} lugares libres` : "Cupo lleno"}
+              </small>
+            </li>
+          );
+        })}
+      </ul>
+      {!!t.highlights?.length && (
+        <div className="pub-highlights">
+          {t.highlights.map((h, i) => {
+            const Icon = highlightIcons[h.icon] || Trophy;
+            return (
+              <div key={i} className="pub-card">
+                <Icon aria-hidden />
+                <div>
+                  <h3>{h.title}</h3>
+                  <p>{h.text}</p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
+export function TournamentVenue({ state }: { state: State }) {
+  const t = state.tournament!;
+  const courts = state.courts.filter((c) => c.enabled);
   const opens = courts.map((c) => c.opens_at).sort()[0];
   const closes = courts
     .map((c) => c.closes_at)
     .sort()
     .at(-1);
   return (
-    <>
-      <section className="tournament-details">
+    <section className="pub-venue pub-dark" id="sede">
+      <div className="pub-venue-info">
         <div>
-          <h2>Detalles del torneo</h2>
-          <p>
-            {state.categories.length} categorías, {courts.length ? `${courts.length} canchas` : "todas las canchas"} y cupo
-            para {capacity} parejas.
-          </p>
-          <div className="detail-grid">
-            <div>
-              <CalendarDays />
-              <div>
-                <h4>
-                  {tournamentDates(t)}
-                </h4>
-                <p>Fechas del torneo</p>
-              </div>
-            </div>
-            <div>
-              <Users />
-              <div>
-                <h4>{state.teams.length} parejas</h4>
-                <p>Inscritas de {capacity}</p>
-              </div>
-            </div>
-            <div>
-              <CheckCircle2 />
-              <div>
-                <h4>
-                  Inscripciones {t.registration_open ? "abiertas" : "cerradas"}
-                </h4>
-                <p>
-                  {t.auto_approve
-                    ? "Aprobación automática"
-                    : "Sujetas a aprobación"}
-                </p>
-              </div>
-            </div>
-            <div>
-              <MapPin />
-              <div>
-                <h4>{t.venue}</h4>
-                <p>{t.city || "Sede"}</p>
-              </div>
-            </div>
-          </div>
+          <p className="pub-eyebrow">Sede</p>
+          <h2>{t.venue}</h2>
         </div>
-        <div className="detail-categories">
-          <ul>
-            {state.categories.map((c) => (
-              <li key={c.id}>
-                <div>
-                  <strong>{c.name}</strong>
-                  <span>
-                    {teams(c.id)}/{c.capacity} parejas
-                  </span>
-                </div>
-                <b>{c.price_cents > 0 ? `${money(c.price_cents / Math.max(c.participant_count || 1, 1))} por jugador` : "Gratis"}</b>
-              </li>
-            ))}
-          </ul>
-          <Button
-            className="detail-register"
-            disabled={!t.registration_open}
-            nativeButton={false}
-            render={<Link href={`${base}/inscripcion`} />}
-          >
-            Inscribirme
-            <ArrowUpRight data-icon="inline-end" />
-          </Button>
-        </div>
-        {!!t.highlights?.length && (
-          <div className="detail-highlights">
-            {t.highlights.map((h, i) => {
-              const Icon = highlightIcons[h.icon];
-              return (
-                <div key={i}>
-                  <h3>
-                    <Icon />
-                    {h.title}
-                  </h3>
-                  <p>{h.text}</p>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </section>
-      <section className="tournament-venue">
-        <h2>Sede</h2>
-        <div>
-          <iframe
-            src={`https://www.google.com/maps?q=${encodeURIComponent(place(t))}&output=embed`}
-            title="Ubicación de la sede"
-            loading="lazy"
-            referrerPolicy="no-referrer-when-downgrade"
-          />
-          <div className="venue-card">
-            <h3>Información de la sede</h3>
-            <div>
-              <MapPin />
+        <ul>
+          {t.city && (
+            <li>
+              <MapPin size={20} aria-hidden />
               <div>
-                <h4>Sede del torneo</h4>
-                <p>
-                  {t.venue}
-                  {t.city && (
-                    <>
-                      <br />
-                      {t.city}
-                    </>
-                  )}
-                </p>
+                <strong>{t.city}</strong>
+                <span>Ciudad</span>
               </div>
-            </div>
+            </li>
+          )}
+          <li>
+            <CalendarDays size={20} aria-hidden />
             <div>
-              <Clock />
-              <div>
-                <h4>Fechas y horario</h4>
-                <p>
-                  {tournamentDates(t)}
-                  {opens && (
-                    <>
-                      <br />
-                      {opens} — {closes}
-                    </>
-                  )}
-                </p>
-              </div>
+              <strong>{tournamentDates(t)}</strong>
+              <span>Fechas del torneo</span>
             </div>
-            <div>
-              <Trophy />
+          </li>
+          {opens && (
+            <li>
+              <Clock size={20} aria-hidden />
               <div>
-                <h4>{courts.length ? `${courts.length} canchas` : "Todas las canchas"}</h4>
-                {courts.length > 0 && <p>{courts.map((c) => c.name).join(" · ")}</p>}
+                <strong>
+                  {opens} — {closes}
+                </strong>
+                <span>Horario de juego</span>
               </div>
-            </div>
-          </div>
-        </div>
-      </section>
-    </>
+            </li>
+          )}
+          {courts.length > 0 && (
+            <li>
+              <Trophy size={20} aria-hidden />
+              <div>
+                <strong>{courts.length} canchas</strong>
+                <span>{courts.map((c) => c.name).join(" · ")}</span>
+              </div>
+            </li>
+          )}
+        </ul>
+        <Button
+          variant="outline"
+          size="lg"
+          nativeButton={false}
+          render={
+            <a
+              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place(t))}`}
+              target="_blank"
+              rel="noreferrer"
+            />
+          }
+        >
+          Cómo llegar
+          <ArrowUpRight data-icon="inline-end" />
+        </Button>
+      </div>
+      <iframe
+        src={`https://www.google.com/maps?q=${encodeURIComponent(place(t))}&output=embed`}
+        title="Ubicación de la sede"
+        loading="lazy"
+        referrerPolicy="no-referrer-when-downgrade"
+      />
+    </section>
   );
 }

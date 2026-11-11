@@ -16,45 +16,48 @@ export function SponsorsPage({ slug, torneo }: { slug: string; torneo: string })
   const tiers = state && sponsorTiers(state);
   const groups = tiers
     ? ([
-        ["PRESENTADO POR", tiers.presented, 2 * 160],
-        ["PATROCINADORES OFICIALES", tiers.official, 2 * 96],
-        ["CON EL APOYO DE", tiers.support, 2 * 56],
+        ["presented", "PRESENTADO POR", tiers.presented, 200],
+        ["official", "PATROCINADORES OFICIALES", tiers.official, 130],
+        ["support", "CON EL APOYO DE", tiers.support, 80],
       ] as const)
     : [];
   return (
     <PublicShell slug={slug} orgName={state?.organization?.name} torneo={torneo}>
-      <main className="registration-page wide sponsors-page">
-        <Link className="back-link" href={`/${slug}/${torneo}`}>
-          <ArrowLeft size={15} />
-          Volver al torneo
-        </Link>
-        <h1>Patrocinadores</h1>
+      <main className="pub-main pub-wrap">
+        <section className="pub-page-head pub-dark" data-enter>
+          <Link className="pub-back" href={`/${slug}/${torneo}`}>
+            <ArrowLeft size={16} />
+            Volver al torneo
+          </Link>
+          <p className="pub-eyebrow">{state?.tournament?.name || "Torneo"}</p>
+          <h1>Patrocinadores</h1>
+          <p>Las marcas que hacen posible cada partido de este torneo.</p>
+        </section>
         {!state ? (
           error ? (
-            <Alert variant="destructive">
+            <Alert variant="destructive" className="mt-8">
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           ) : (
-            <Skeleton className="h-80 w-full" />
+            <Skeleton className="mt-8 h-80 w-full" />
           )
-        ) : groups.every(([, list]) => !list.length) ? (
-          <EmptyState
-            title="Aún no hay patrocinadores"
-            description="Cuando el torneo confirme a sus patrocinadores los verás aquí."
-          />
+        ) : groups.every(([, , list]) => !list.length) ? (
+          <div className="pub-section">
+            <EmptyState
+              title="Aún no hay patrocinadores"
+              description="Cuando el torneo confirme a sus patrocinadores los verás aquí."
+            />
+          </div>
         ) : (
-          groups.map(([title, list, height]) =>
+          groups.map(([tier, title, list, height]) =>
             list.length ? (
-              <section key={title}>
+              <section key={tier} className="pub-sponsor-tier" data-tier={tier}>
                 <SponsorHeading>{title}</SponsorHeading>
-                <div className="sponsor-row">
+                <div className="pub-sponsor-grid">
                   {list.map((s) => (
-                    <SponsorLogo
-                      key={s.id}
-                      sponsor={s}
-                      height={height}
-                      freeWidth={title === "PRESENTADO POR"}
-                    />
+                    <div key={s.id} className="pub-card pub-sponsor-tile">
+                      <SponsorLogo sponsor={s} height={height} freeWidth={tier === "presented"} />
+                    </div>
                   ))}
                 </div>
               </section>

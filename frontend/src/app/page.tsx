@@ -1,18 +1,18 @@
 import Image from "next/image";
 import Link from "next/link";
 import {
-  CalendarDays,
-  ClipboardCheck,
   FileSpreadsheet,
-  Handshake,
   LayoutGrid,
-  Trophy,
   Users,
   Wallet,
   ChartColumn,
   Globe,
 } from "lucide-react";
 import { ClubFinder } from "@/components/club-finder";
+import { Hero } from "@/components/ui/hero-1";
+import { ContainerScroll } from "@/components/ui/container-scroll-animation";
+import { SqueezeCarousel, type SqueezeSlide } from "@/components/ui/carousel-squeeze";
+import "@/components/public/public.css";
 
 export const metadata = {
   title: "Torneum · El centro de operaciones de tu torneo de pádel",
@@ -20,68 +20,40 @@ export const metadata = {
     "Inscripciones, grupos, calendario de canchas, resultados y patrocinadores en un solo lugar. Para clubes que organizan torneos de pádel.",
 };
 
-// Las capturas son de página completa a 1440 px; el marco recorta desde arriba.
-function Shot({ src, alt, height, priority }: { src: string; alt: string; height: number; priority?: boolean }) {
-  return (
-    <div className="overflow-hidden rounded-xl border bg-card shadow-[0_24px_60px_-28px_rgb(32_39_34/0.35)]">
-      <div className="flex items-center gap-1.5 border-b bg-muted px-3 py-2" aria-hidden>
-        <span className="size-2.5 rounded-full bg-border" />
-        <span className="size-2.5 rounded-full bg-border" />
-        <span className="size-2.5 rounded-full bg-border" />
-      </div>
-      <Image
-        src={`/landing/${src}.png`}
-        alt={alt}
-        width={1440}
-        height={height}
-        priority={priority}
-        sizes="(min-width: 1024px) 720px, 100vw"
-        className="aspect-[16/10] w-full object-cover object-top"
-      />
-    </div>
-  );
-}
-
-const features = [
+// Un panel por función: el título corto y, en gris, qué resuelve.
+const highlights: SqueezeSlide[] = [
   {
-    eyebrow: "Inscripciones",
-    title: "Aprueba parejas sin abrir una sola ficha.",
-    text: "Revisa las solicitudes desde la lista, apruébalas o recházalas una a una o en lote, y corrige la categoría en la misma fila. Las parejas reciben su enlace para seguir su torneo.",
-    shot: "inscripciones",
-    height: 1480,
-    alt: "Lista de parejas inscritas con acciones de aprobar y rechazar",
+    id: "inscripciones",
+    title: "Inscripciones en línea o importadas.",
+    description:
+      "Revisa las solicitudes desde la lista, apruébalas o recházalas una a una o en lote, y corrige la categoría en la misma fila.",
+    image: "/landing/inscripciones-pending.png",
+    imageAlt: "Inscripciones pendientes de revisión en el panel",
   },
   {
-    eyebrow: "Calendario y canchas",
-    title: "Toda la jornada en una cuadrícula.",
-    text: "Arrastra cada partido a su cancha y su hora. Torneum comprueba choques, horarios de cancha y descansos antes de guardar, o genera el calendario completo por ti.",
-    shot: "calendario",
-    height: 1978,
-    alt: "Calendario de partidos por cancha y hora",
+    id: "calendario",
+    title: "Calendario por cancha y hora.",
+    description:
+      "Arrastra cada partido a su cancha. Torneum comprueba choques, horarios y descansos antes de guardar, o genera el calendario completo por ti.",
+    image: "/landing/calendario.png",
+    imageAlt: "Calendario de partidos por cancha y hora",
   },
   {
-    eyebrow: "Resultados y cuadro",
-    title: "Del primer saque a la final.",
-    text: "Captura marcadores, registra W.O. y deja que las tablas de grupo y el cuadro de eliminación se actualicen solos. Los desempates se aplican con las reglas que tú defines.",
-    shot: "cuadro",
-    height: 1404,
-    alt: "Cuadro de eliminación del torneo",
+    id: "grupos",
+    title: "Grupos y cuadro con desempates.",
+    description:
+      "Captura marcadores y deja que las tablas de grupo y el cuadro de eliminación se actualicen solos, con las reglas de desempate que tú defines.",
+    image: "/landing/grupos.png",
+    imageAlt: "Tablas de grupos con su clasificación",
   },
   {
-    eyebrow: "Patrocinadores",
-    title: "Tus patrocinadores, también organizados.",
-    text: "Lleva el seguimiento de cada marca, sus paquetes y sus mensajes. Los logos de los patrocinadores confirmados aparecen en el portal público del torneo.",
-    shot: "patrocinadores",
-    height: 2226,
-    alt: "Panel de patrocinadores con estados y paquetes",
+    id: "patrocinadores",
+    title: "Patrocinadores y sus paquetes.",
+    description:
+      "Lleva el seguimiento de cada marca y sus mensajes. Los logos confirmados aparecen en el portal público del torneo.",
+    image: "/landing/patrocinadores.png",
+    imageAlt: "Panel de patrocinadores con sus paquetes",
   },
-];
-
-const highlights = [
-  { icon: ClipboardCheck, title: "Inscripciones", text: "en línea o importadas" },
-  { icon: CalendarDays, title: "Calendario", text: "por cancha y hora" },
-  { icon: Trophy, title: "Grupos y cuadro", text: "con desempates" },
-  { icon: Handshake, title: "Patrocinadores", text: "y sus paquetes" },
 ];
 
 const extras = [
@@ -95,93 +67,92 @@ const extras = [
 
 export default function Page() {
   return (
-    <div className="landing min-h-dvh bg-background text-foreground">
-      <header className="mx-auto flex max-w-6xl items-center justify-between px-5 py-5">
-        <Link href="/" className="brand" aria-label="Torneum, inicio">
-          <span className="brand-mark">t</span>torneum<span className="brand-period">.</span>
-        </Link>
-        <nav className="flex items-center gap-5 text-sm text-muted-foreground">
-          <a href="#funciones" className="hidden hover:text-foreground sm:inline">Funciones</a>
-          <a href="#entrar" className="rounded-lg bg-primary px-3 py-2 font-medium text-primary-foreground hover:bg-primary/85">
-            Entrar
-          </a>
-        </nav>
+    <div className="landing min-h-dvh">
+      <header className="pub-nav">
+        <div className="pub-wrap">
+          <Link href="/" className="pub-brand" aria-label="Torneum, inicio">
+            <span className="brand-mark">t</span>
+            <span>torneum.</span>
+          </Link>
+          <nav className="pub-links" aria-label="Principal">
+            <a href="#funciones">Funciones</a>
+            <a href="#entrar">Encontrar mi club</a>
+          </nav>
+        </div>
       </header>
 
       <main>
-        <section className="mx-auto max-w-6xl px-5 pt-10 pb-16 text-center sm:pt-16">
-          <p className="text-xs font-semibold tracking-[0.2em] text-primary uppercase">Torneos de pádel</p>
-          <h1 className="mx-auto mt-4 max-w-3xl text-4xl leading-[1.05] font-bold tracking-tight text-balance sm:text-6xl">
-            Tu torneo, de la inscripción a la final.
-          </h1>
-          <p className="mx-auto mt-5 max-w-2xl text-lg text-pretty text-muted-foreground">
-            Torneum reúne inscripciones, grupos, calendario de canchas, resultados y patrocinadores en un solo centro de
-            operaciones. Menos hojas de cálculo, más pádel.
-          </p>
-          <div className="mt-8 flex justify-center">
-            <ClubFinder />
-          </div>
-          <div className="mx-auto mt-14 max-w-5xl">
-            <Shot src="inicio" height={1323} priority alt="Inicio del panel del organizador con el resumen del torneo" />
+        <Hero
+          eyebrow="Software para torneos de pádel"
+          eyebrowHref="#funciones"
+          title="Tu torneo, de la inscripción a la final."
+          subtitle="Inscripciones, grupos, calendario de canchas, resultados y patrocinadores en un solo panel para el club. Y un portal con la marca del club donde cada jugador sigue su torneo."
+          ctaLabel="Encontrar mi club"
+          ctaHref="#entrar"
+        />
+        <section className="landing-hero-shot" aria-label="El panel del organizador">
+          <ContainerScroll titleComponent={null}>
+            <Image
+              src="/landing/inicio.png"
+              alt="Inicio del panel del organizador con el resumen del torneo"
+              width={1440}
+              height={1323}
+              priority
+              sizes="(min-width: 1024px) 1024px, 100vw"
+              className="mx-auto h-full w-full rounded-xl object-cover object-left-top"
+              draggable={false}
+            />
+          </ContainerScroll>
+        </section>
+
+        <section id="funciones" className="landing-highlights pub-dark">
+          <div className="pub-wrap">
+            <SqueezeCarousel
+              slides={highlights}
+              label="Lo esencial de Torneum"
+              height="clamp(160px, 30cqi, 360px)"
+              gap="clamp(6px, 1.4cqi, 16px)"
+              radius={12}
+              header={
+                <>
+                  <p className="pub-eyebrow">Funciones</p>
+                  <h2 className="pub-display landing-highlights-title">Todo el torneo en un solo panel.</h2>
+                </>
+              }
+            />
           </div>
         </section>
 
-        <section className="border-y bg-card">
-          <dl className="mx-auto grid max-w-6xl grid-cols-2 gap-6 px-5 py-10 text-center md:grid-cols-4">
-            {highlights.map(({ icon: Icon, title, text }) => (
-              <div key={title} className="flex flex-col items-center gap-2">
-                <Icon className="size-5 text-primary" aria-hidden />
-                <dt className="font-semibold">{title}</dt>
-                <dd className="text-sm text-muted-foreground">{text}</dd>
+        <section className="pub-wrap landing-extras">
+          <h2 className="pub-display">Y todo lo que pasa alrededor del torneo.</h2>
+          <div>
+            {extras.map(({ icon: Icon, title, text }) => (
+              <div key={title} className="pub-card">
+                <Icon aria-hidden />
+                <h3>{title}</h3>
+                <p>{text}</p>
               </div>
             ))}
-          </dl>
-        </section>
-
-        <section id="funciones" className="mx-auto flex max-w-6xl scroll-mt-6 flex-col gap-24 px-5 py-24">
-          {features.map((f, i) => (
-            <article key={f.shot} className="grid items-center gap-10 lg:grid-cols-[2fr_3fr]">
-              <div className={i % 2 ? "lg:order-2" : undefined}>
-                <p className="text-xs font-semibold tracking-[0.2em] text-primary uppercase">{f.eyebrow}</p>
-                <h2 className="mt-3 text-3xl leading-tight font-bold tracking-tight text-balance">{f.title}</h2>
-                <p className="mt-4 text-pretty text-muted-foreground">{f.text}</p>
-              </div>
-              <Shot src={f.shot} height={f.height} alt={f.alt} />
-            </article>
-          ))}
-        </section>
-
-        <section className="bg-muted">
-          <div className="mx-auto max-w-6xl px-5 py-20">
-            <h2 className="max-w-xl text-3xl font-bold tracking-tight text-balance">Y todo lo que pasa alrededor.</h2>
-            <div className="mt-10 grid gap-x-8 gap-y-10 sm:grid-cols-2 lg:grid-cols-3">
-              {extras.map(({ icon: Icon, title, text }) => (
-                <div key={title}>
-                  <Icon className="size-5 text-primary" aria-hidden />
-                  <h3 className="mt-3 font-semibold">{title}</h3>
-                  <p className="mt-1 text-sm text-muted-foreground">{text}</p>
-                </div>
-              ))}
-            </div>
           </div>
         </section>
 
-        <section id="entrar" className="mx-auto flex max-w-6xl scroll-mt-6 flex-col items-center px-5 py-24 text-center">
-          <h2 className="text-3xl font-bold tracking-tight text-balance">Encuentra tu club</h2>
-          <p className="mt-3 max-w-lg text-muted-foreground">
-            Escribe el identificador de tu club para ver su torneo. Si organizas, entra a tu panel desde aquí.
-          </p>
-          <div className="mt-8 flex w-full justify-center">
-            <ClubFinder />
+        <section id="entrar" className="pub-wrap landing-cta-wrap">
+          <div className="landing-cta pub-dark">
+            <p className="pub-eyebrow">Jugadores y organizadores</p>
+            <h2 className="pub-display">Encuentra tu club</h2>
+            <p>Escribe el identificador de tu club para ver su torneo. Si organizas, entra a tu panel desde aquí.</p>
+            <div className="landing-finder">
+              <ClubFinder />
+            </div>
           </div>
         </section>
       </main>
 
-      <footer className="border-t">
-        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-5 py-8 text-sm text-muted-foreground sm:flex-row">
-          <span>Torneum · Cada partido cuenta.</span>
-          <Link href="/plataforma" className="hover:text-foreground">Administración de la plataforma</Link>
-        </div>
+      <footer className="pub-wrap landing-footer">
+        <span>
+          <strong>torneum.</strong> Cada partido cuenta.
+        </span>
+        <Link href="/plataforma">Administración de la plataforma</Link>
       </footer>
     </div>
   );

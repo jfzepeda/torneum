@@ -67,7 +67,7 @@ export function PresentedBy({ state }: { state: State }) {
       <SponsorHeading>PRESENTADO POR</SponsorHeading>
       <div className="sponsor-row">
         {presented.map((s) => (
-          <SponsorLogo key={s.id} sponsor={s} height={240} freeWidth />
+          <SponsorLogo key={s.id} sponsor={s} height={180} freeWidth />
         ))}
       </div>
     </section>
